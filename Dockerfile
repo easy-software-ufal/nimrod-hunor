@@ -1,6 +1,6 @@
 FROM ubuntu:18.04
 RUN apt-get update
-RUN apt-get install python3 python3-pip default-jdk maven -y
+RUN apt-get install python3 python3-pip openjdk-8-jdk maven -y
 
 WORKDIR /nimrod-hunor
 COPY nimrod nimrod/
