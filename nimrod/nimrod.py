@@ -5,6 +5,7 @@ import threading
 
 from nimrod.tools.randoop import Randoop
 from nimrod.tools.mujava import MuJava
+from nimrod.tools.major import Major
 from nimrod.mutant import Mutant
 from nimrod.tools.safira import Safira
 from nimrod.tools.junit import JUnit, JUnitResult, Coverage
@@ -36,7 +37,7 @@ class Nimrod:
 
         results = {}
 
-        _, classes_dir = self.maven.compile(project_dir, clean=True)
+        _, classes_dir = self.maven.compile(project_dir, clean=True)        
         output_dir = self.check_output_dir(output_dir if output_dir
                                            else os.path.join(project_dir,
                                                              OUTPUT_DIR))
@@ -109,8 +110,8 @@ class Nimrod:
     @staticmethod
     def print_result( mutant, result):
         if result.maybe_equivalent:
-            print('{0} maybe equivalent, executions: {1}.'
-                  .format(mutant.mid, result.coverage.executions))
+            print('{0} may be equivalent. Coverage: {1}. Executions: {2}.'
+                  .format(mutant.mid, 'Equal' if(result.is_equal_coverage) else 'Different', result.coverage.executions))
         else:
             print('{0} is not equivalent. {1}'
                   .format(mutant.mid, 'Killed by differential test.' if
@@ -131,12 +132,19 @@ class Nimrod:
             print('{0}: directory not found.'.format(mutant.mid))
             return False
 
-    def get_mutants(self, classpath, mutants_dir):
-        mujava = MuJava(self.java, mutants_dir)
-        mutants = mujava.read_log()
-        mujava.compile_mutants(classpath, mutants)
+    def get_mutants(self, classpath, mutants_dir):        
+        if('mujava' in mutants_dir):
+            mujava = MuJava(self.java, mutants_dir)
+            mutants = mujava.read_log()
+            mujava.compile_mutants(classpath, mutants)
+            return mutants
+        elif('major' in mutants_dir):
+            major = Major(self.java, mutants_dir)
+            mutants = major.read_log()
+            major.compile_mutants(classpath, mutants)
+            return mutants
+        return []    
 
-        return mutants
 
 
     def check_class_coverage(self, classes_dir, sut_class, mutant, evo_test_result, ran_test_result):
