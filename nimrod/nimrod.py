@@ -34,7 +34,41 @@ class Nimrod:
 
     def run(self, project_dir, mutants_dir, sut_class, randoop_params=None,
             evosuite_diff_params=None, evosuite_params=None, output_dir=None):
+        
+        #Algorithm
+        # 1. Execute the dev tests (through mvn) - IMPORTANT: Pule this line and get the survived mutants (in case of Defects4J)
+        # **** Save coverage on survived mutants ???
+        # 2. Take the survived mutants and execute TCE
+        # **** Remove TCE equivalents (log results)
+        # **** Remove TCE duplicates (log results)
+        # 3. Generate automatic tests with EvoSuite and Randoop (based on original)
+        # **** Save the automatic tests alongside the dev tests (combined test set)
+        # 4. Execute the combined test set to check if they are passing on original (eliminate in case of flaky)
+        # 5. Take the survived mutants (minus TCE eqv and dup) and execute the combined test set
+        # 6. For each mutant:
+        #    IF mutant killed: 
+        #       save the killer test, and GO TO ...
+        #    ELSE mutant not killed: 
+        #       save the coverage on mutant
+        #       execute EvoSuiteR with the mutant
+        #       IF EvoSuiteR find a test and kill the mutant:
+        #           Save the killer test
+        #           Add up this new test case to the combined test set
+        #           Label the mutant as Non-equivalent
+        #           Remove from survived set
+        # 7. Repeat steps 5 and 6 with all (survived) mutants
+        # 8. Take the survived mutant set  and the orignal, execute the combined test set
+        # **** Save the coverage (check if any other mutant kill)
+        # **** Compare coverage (and other information)
+        # 9. Rank the survived mutants according to coverage information
+        # 10. OUTCOME
+        # **** a) Set of equivalent mutants from TCE
+        # **** b) Set of duplicate mutants from TCE
+        # **** c) Set of non-equivalent mutants and the corresponding killer test-set
+        # **** d) A rank of last survived mutants to manual analysis
 
+
+        
         results = {}
 
         _, classes_dir = self.maven.compile(project_dir, clean=True)        
