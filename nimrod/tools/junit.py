@@ -77,9 +77,7 @@ class JUnit:
         except subprocess.TimeoutExpired as e:
             elapsed_time = time.time() - start
             print("# [WARNING] Run JUnit tests timed out. {0} seconds".format(
-                elapsed_time))
-            import pdb
-            pdb.set_trace()    
+                elapsed_time))            
             return JUnitResult(0, 0, set(), 0, None, True)
 
     @staticmethod
