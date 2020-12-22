@@ -42,9 +42,9 @@ class Safira(ImpactAnalysis):
             output = self.java.exec_java(
                 None, self.java.get_env(), timeout,
                 '-classpath', classpath,
-                'saferefactor.safira.SafiraStart',
-                *tuple(params if params else []),
-                self.classes_dir, self.mutant_dir
+                'saferefactor.safira.SafiraStart',                
+                self.classes_dir, self.mutant_dir,
+                *tuple(params if params else [])
             )
 
             methods, constructors, all_methods_by_class = self._extract_results(output.decode('unicode_escape'))

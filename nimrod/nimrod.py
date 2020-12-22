@@ -63,7 +63,7 @@ class Nimrod:
                                                      evosuite_diff_params)
                 
                 
-                if test_result.fail_tests > 0 or test_result.timeout:
+                if test_result.fail_tests > 0 or test_result.timeout: #Se killed pelo EvoSuite Diff
                     results[mutant.mid] = self.create_nimrod_result(test_result,
                                                                     True, 'evosuite')
                 else:
@@ -71,11 +71,16 @@ class Nimrod:
                     thread_randoop.start()
                     # Wait the generation of the Suite in the thread
                     thread_evosuite.join()
+                    # EvoSuite tests generated, time to execute with original to check all tests pass
+                    evo_test_result_original = self.try_evosuite(classes_dir, tests_src,
+                                                        sut_class, original,
+                                                        evosuite_params)
+
                     evo_test_result = self.try_evosuite(classes_dir, tests_src,
                                                         sut_class, mutant,
                                                         evosuite_params)
                     if evo_test_result and (evo_test_result.fail_tests > 0
-                                            or evo_test_result.timeout):
+                                            or evo_test_result.timeout): #Se Killed pelo EvoSuite
                         results[mutant.mid] = self.create_nimrod_result(
                             evo_test_result, False, 'evosuite')
                     else:
@@ -85,7 +90,7 @@ class Nimrod:
                             classes_dir, tests_src, sut_class, mutant,
                             randoop_params)
                         if ran_test_result and (ran_test_result.fail_tests > 0
-                                                or ran_test_result.timeout):
+                                                or ran_test_result.timeout): #Se killed pelo Randoop
                             results[mutant.mid] = self.create_nimrod_result(
                                 ran_test_result, False, 'randoop')
                         else:
@@ -145,12 +150,32 @@ class Nimrod:
             return mutants
         return []    
 
-
+    def get_coverage_bool(self, orig_result,  mutant_result):        
+        info_coverage = False
+        if orig_result == None and mutant_result == None:
+            return True #não conseguiu montar coverage nem no original , nem no mutante, entao igual
+        elif orig_result == None or mutant_result == None:
+            return False #Se apenas um for None e o outro nao for None, entao sao diferentes coverages
+        elif orig_result.coverage.class_coverage == mutant_result.coverage.class_coverage:
+            return True #Se a copia do Coverage for exatamente igual
+        else: #Existem casos especiais que precisam ser analisados linha a linha (ex. qnd ocorre uma delecao de stmt)
+            for k,v in orig_result.coverage.class_coverage.items():
+                dict_orig = dict(v)
+                dict_mut = dict(mutant_result.coverage.class_coverage[k])
+                for k_orig,v_orig in dict_orig.items():
+                    if(k_orig in dict_mut.keys()):#Se a linha existir no mutante...
+                        if(dict_orig[k_orig] != dict_mut[k_orig]): #uma linha teve resultado diferente
+                            return False
+                    else: #Se a linha nao exitir no mutante, verificamos se ela teve alguma cobrtura no original
+                        if(dict_orig[k_orig] > 0):
+                            return False
+                                
+        return True #nao consegui provar diferença, entao entendo q seja igual o Coverage
 
     def check_class_coverage(self, classes_dir, sut_class, mutant, evo_test_result, ran_test_result):
 
         evosuite_coverage = False
-        randoop_coverage = False
+        randoop_coverage = False        
 
         original_dir = os.path.join(
                             mutant.dir[:mutant.dir.rfind(os.sep)], 'ORIGINAL')
@@ -159,26 +184,25 @@ class Nimrod:
 
         junit = JUnit(java=self.java, classpath=classes_dir)
         orig_evosuite_result = (junit.run_with_mutant(self.suite_evosuite, sut_class, original)
-                if self.suite_evosuite else None)
+                if self.suite_evosuite else None)        
         orig_ran_result = (junit.run_with_mutant(self.suite_randoop, sut_class, original)
                 if self.suite_randoop else None)        
 
-        if orig_evosuite_result == None and evo_test_result == None:
-            evosuite_coverage = True
-        elif orig_evosuite_result == None or evo_test_result == None:
-            evosuite_coverage = False
-        else:
-            evosuite_coverage = (orig_evosuite_result.coverage.class_coverage == evo_test_result.coverage.class_coverage)
+        evosuite_coverage = self.get_coverage_bool(orig_evosuite_result, evo_test_result)
+        randoop_coverage = self.get_coverage_bool(orig_ran_result, ran_test_result)
 
-        if orig_ran_result == None and ran_test_result == None:
-            randoop_coverage = True
-        elif orig_ran_result == None or ran_test_result == None:
-            randoop_coverage = False
-        else:
-            randoop_coverage = (orig_ran_result.coverage.class_coverage == ran_test_result.coverage.class_coverage)
+        try:
+            print(sut_class)
+            print('--', orig_ran_result.coverage.class_coverage)
+            print('--', ran_test_result.coverage.class_coverage)
+            print('++', orig_evosuite_result.coverage.class_coverage)
+            print('++', evo_test_result.coverage.class_coverage)        
+        except:
+            print('-- No Log')
 
         return  (evosuite_coverage and randoop_coverage)
 
+    
 
     def try_evosuite_diff(self, classes_dir, tests_src, sut_class, mutant,
                      evosuite_diff_params=None):
@@ -186,10 +210,14 @@ class Nimrod:
         return junit.run_with_mutant(self.suite_evosuite_diff, sut_class, mutant)
 
 
-    def try_evosuite(self, classes_dir, tests_src, sut_class, mutant,
+    def try_evosuite(self, classes_dir, tests_src, sut_class, mutant=None,
                      evosuite_params=None):
         junit = JUnit(java=self.java, classpath=classes_dir)
-        return (junit.run_with_mutant(self.suite_evosuite, sut_class, mutant)
+        if mutant is None:
+            return (junit.run_with_original(self.suite_evosuite, sut_class, classes_dir)
+                if self.suite_evosuite else None)
+        else:
+            return (junit.run_with_mutant(self.suite_evosuite, sut_class, mutant)
                 if self.suite_evosuite else None)
 
 

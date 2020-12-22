@@ -10,7 +10,7 @@ from collections import namedtuple
 
 from nimrod.utils import get_java_files
 from nimrod.utils import generate_classpath
-from nimrod.tools.bin import JUNIT, HAMCREST
+from nimrod.tools.bin import JUNIT, HAMCREST, COMMONS_LANG_24
 
 TIMEOUT = 5 * 60
 COMPILE_TIMEOUT = 20
@@ -62,7 +62,7 @@ class SuiteGenerator(ABC):
 
     @staticmethod
     def _extra_classpath():
-        return []
+        return [COMMONS_LANG_24]
 
     def _get_suite_dir(self):
         return self.suite_dir

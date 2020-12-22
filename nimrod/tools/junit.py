@@ -7,11 +7,11 @@ from collections import namedtuple
 
 from bs4 import BeautifulSoup
 
-from nimrod.tools.bin import JUNIT, HAMCREST, JMOCKIT, EVOSUITE_RUNTIME
+from nimrod.tools.bin import JUNIT, HAMCREST, JMOCKIT, EVOSUITE_RUNTIME, COMMONS_LANG_24
 from nimrod.utils import generate_classpath, package_to_dir
 from nimrod.mutant import Mutant
 
-TIMEOUT = 80
+TIMEOUT = 40
 
 
 JUnitResult = namedtuple('JUnitResult', ['ok_tests', 'fail_tests', 
@@ -52,6 +52,7 @@ class JUnit:
               cov_src_dirs='.', timeout=TIMEOUT):
 
         params = (
+            '-javaagent:'+str(JMOCKIT), 
             '-classpath', classpath,
             '-Dcoverage-classes=' + sut_class,
             '-Dcoverage-output=html',
@@ -61,9 +62,9 @@ class JUnit:
         )
 
         start = time.time()
-        try:
+        try:            
             output = self.java.exec_java(suite_dir, self.java.get_env(),
-                                         timeout, *params)
+                                         timeout, *params)            
             return JUnitResult(
                 *JUnit._extract_results_ok(output.decode('unicode_escape')),
                 time.time() - start, None, False
@@ -77,6 +78,8 @@ class JUnit:
             elapsed_time = time.time() - start
             print("# [WARNING] Run JUnit tests timed out. {0} seconds".format(
                 elapsed_time))
+            import pdb
+            pdb.set_trace()    
             return JUnitResult(0, 0, set(), 0, None, True)
 
     @staticmethod
@@ -117,7 +120,7 @@ class JUnit:
 
         return tests_fail
 
-    def run_with_mutant(self, suite, sut_class, mutant, cov_original=True,
+    def run_with_mutant(self, suite, sut_class, mutant, cov_original=False,
                         original_dir=None):
         ok_tests = 0
         fail_tests = 0
@@ -130,6 +133,7 @@ class JUnit:
         timeout = False
 
         for test_class in suite.test_classes:
+
             result = self.exec_with_mutant(suite.suite_dir,
                                            suite.suite_classes_dir, sut_class,
                                            test_class, mutant)
@@ -139,12 +143,12 @@ class JUnit:
             run_time += run_time
             timeout = timeout or result.timeout
 
-            if not timeout:
+            if not timeout: #Se nao ocorreu timeout...
                 if cov_original:
                     if original_dir is None:
                         original_dir = os.path.join(
                             mutant.dir[:mutant.dir.rfind(os.sep)], 'ORIGINAL')
-                    if os.path.exists(original_dir):
+                    if os.path.exists(original_dir):                        
                         self.java.compile_all(self.classpath, original_dir)
                         result_original = self.exec_with_mutant(suite.suite_dir,
                                               suite.suite_classes_dir,
@@ -168,14 +172,53 @@ class JUnit:
                     executions += cov.executions
                     class_coverage[test_class] = cov.class_coverage
             else:
+                # Se o teste teve timeout no mutante, executamos contra o original para averiguar se nao ocorre timeout
                 r = self.exec(suite.suite_dir, suite.suite_classes_dir,
-                              sut_class, test_class)
-                if r.timeout:
+                              sut_class, test_class)                
+                if r.timeout: #Se ocorre timeout tb no original, entao retorna, indicando q nao houve diferença na execução.
                     return None
 
         return JUnitResult(ok_tests, fail_tests, fail_test_set, run_time,
                            Coverage(call_points, test_cases, executions,class_coverage),
                            timeout)
+
+
+    def run_with_original(self, suite, sut_class, original, cov_original=False,
+                        original_dir=None):
+        ok_tests = 0
+        fail_tests = 0
+        fail_test_set = set()
+        run_time = 0
+        call_points = set()
+        test_cases = set()
+        class_coverage = dict()
+        executions = 0
+        timeout = False
+
+        #Navigate through all test classes generated...
+        for test_class in suite.test_classes:
+            #Execute the test suite
+            result = self.exec(suite.suite_dir,suite.suite_classes_dir, 
+                                sut_class,test_class)
+            #Increment the results (in case of previous tests executed)
+            ok_tests += result.ok_tests
+            fail_tests += result.fail_tests
+            fail_test_set = fail_test_set.union(result.fail_test_set)
+            run_time += run_time
+            timeout = timeout or result.timeout
+
+            cov = self.run_coverage(suite.suite_dir, sut_class,
+                                    original.line_number)
+            if cov:
+                call_points = call_points.union(cov.call_points)
+                test_cases = test_cases.union(cov.test_cases)
+                executions += cov.executions
+                class_coverage[test_class] = cov.class_coverage
+            
+
+        return JUnitResult(ok_tests, fail_tests, fail_test_set, run_time,
+                           Coverage(call_points, test_cases, executions,class_coverage),
+                           timeout)                       
 
     @staticmethod
     def get_original(original_dir):
@@ -235,7 +278,7 @@ class JMockit:
                         for cp in cps:
                             call_points.add((file, test_case, cp))
 
-        class_coverage =  JMockit._get_coverage_info_class(soup)
+        class_coverage =  JMockit._get_coverage_info_class(soup)        
         return Coverage(call_points, test_cases, executions, class_coverage)
 
 

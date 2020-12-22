@@ -2,7 +2,7 @@ import os
 
 from nimrod.tools.suite_generator import SuiteGenerator
 from nimrod.utils import get_class_files, get_java_files
-from nimrod.tools.bin import EVOSUITE, EVOSUITE_RUNTIME
+from nimrod.tools.bin import EVOSUITE, EVOSUITE_RUNTIME, COMMONS_LANG_24
 from nimrod.tools.suite_generator import Suite
 
 METHOD_LIST_FILENAME = 'methods_to_test.txt'
@@ -15,7 +15,7 @@ class Evosuite(SuiteGenerator):
     def _exec_tool(self):
         params = [
             '-jar', EVOSUITE,
-            '-projectCP', self.classpath,
+            '-projectCP', self.classpath + ':' + COMMONS_LANG_24,
             '-class', self.sut_class,
             '-Dtimeout', '10000',
             '-DOUTPUT_DIR=' + self.suite_dir
@@ -40,7 +40,7 @@ class Evosuite(SuiteGenerator):
 
     @staticmethod
     def _extra_classpath():
-        return [EVOSUITE_RUNTIME]
+        return [EVOSUITE_RUNTIME, COMMONS_LANG_24]
 
     def _get_java_files(self):
         ordered_files = []
@@ -57,7 +57,7 @@ class Evosuite(SuiteGenerator):
         params = [
             '-jar', EVOSUITE,
             '-regressionSuite',
-            '-projectCP', self.classpath,
+            '-projectCP', self.classpath + ':' + COMMONS_LANG_24,
             '-Dregressioncp=' + mutants_classpath,
             '-class', self.sut_class,
             '-DOUTPUT_DIR=' + self.suite_dir

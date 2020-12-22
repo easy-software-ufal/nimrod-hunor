@@ -5,6 +5,7 @@ import random
 
 from nimrod.utils import generate_classpath
 from nimrod.tools.bin import RANDOOP
+from nimrod.tools.bin import COMMONS_LANG_24
 
 
 METHOD_LIST_FILENAME = 'methods_to_test.txt'
@@ -17,7 +18,7 @@ class Randoop(SuiteGenerator):
 
     def _exec_tool(self):
         params = [
-            '-classpath', generate_classpath([self.classpath, RANDOOP]),
+            '-classpath', generate_classpath([self.classpath, RANDOOP, COMMONS_LANG_24]),
             'randoop.main.Main',
             'gentests',
             '--randomseed=' + str(random.randint(0, 9999)),
@@ -26,13 +27,12 @@ class Randoop(SuiteGenerator):
         ]
 
         params += self.parameters
-
         return self._exec(*tuple(params))
 
     def _test_classes(self):
         return ['RegressionTest']
 
-    def generate_with_impact_analysis(self, impact_analysis):
+    def generate_with_impact_analysis(self, impact_analysis):                
         method_list = ""
         self._make_src_dir()
         impact_analysis_result = impact_analysis.run()
