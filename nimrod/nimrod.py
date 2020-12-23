@@ -27,47 +27,92 @@ class Nimrod:
 
     def __init__(self, java, maven):
         self.java = java
-        self.maven = maven
+        self.maven = maven        
         self.suite_evosuite_diff = None
         self.suite_evosuite = None
         self.suite_randoop = None
+        #New fields
+        self.tce = None
+        self.testsuite_combined = None
+        self.testsuite_killer = None
+        self.mutants_surviving = None
 
+
+    def _try_tce(self, project_dir, mutants_dir, sut_class):
+        pass
+
+    def _gen_automatic_tests(self, project_dir, mutants_dir, sut_class, randoop_params, evosuite_params):
+        pass
+    
+    def _try_combined_tests_on(self, project_dir):
+        pass
+
+    # #####  EXPERIMENT ALGORITHM #####
+    #
+    # 1. Execute the dev tests (through mvn) - IMPORTANT: Skip this line and take the survived mutants (in case of Defects4J)
+    # **** Save the survived mutants
+    # 2. Take the survived mutants and execute TCE
+    # **** Remove TCE equivalents (log results)
+    # **** Remove TCE duplicates (log results)
+    # 3. Generate automatic tests with EvoSuite and Randoop (based on original)
+    # **** Save the automatic tests alongside the dev tests (combined test set)
+    # 4. Execute the combined test set to check if they are passing on original (eliminate in case of flaky)
+    # 5. Take the survived mutants (minus TCE eqv and dup) and execute the combined test set
+    #    For each mutant:
+    #    IF mutant killed: 
+    #       save the killer test, and GO TO ...
+    #    ELSE mutant not killed: 
+    #       save the coverage on mutant
+    #       execute EvoSuiteR with the mutant
+    #       IF EvoSuiteR find a test and kill the mutant:
+    #           Save the killer test
+    #           Add up this new test case to the combined test set
+    #           Label the mutant as Non-equivalent
+    #           Remove from survived set
+    # 
+    # 7. Take the survived mutant set  and the orignal, execute the combined test set
+    # **** Save the coverage (check if any other mutant kill)
+    # **** Compare coverage (and other information)
+    # 8. Rank the survived mutants according to coverage information
+    # ===============================================
+    # OUTCOME
+    # **** a) Set of equivalent mutants from TCE
+    # **** b) Set of duplicate mutants from TCE
+    # **** c) Set of non-equivalent mutants and the corresponding killer test-set
+    # **** d) A rank of last survived mutants to manual analysis
     def run(self, project_dir, mutants_dir, sut_class, randoop_params=None,
             evosuite_diff_params=None, evosuite_params=None, output_dir=None):
         
-        #Algorithm
-        # 1. Execute the dev tests (through mvn) - IMPORTANT: Pule this line and get the survived mutants (in case of Defects4J)
-        # **** Save coverage on survived mutants ???
+        
+        # 1. Execute the dev tests (through Maven) - IMPORTANT: Skip this line and take the survived mutants (in case of Defects4J)
+        # **** Save the survived mutants
+
         # 2. Take the survived mutants and execute TCE
+        self._try_tce(project_dir, mutants_dir, sut_class)
         # **** Remove TCE equivalents (log results)
         # **** Remove TCE duplicates (log results)
+
         # 3. Generate automatic tests with EvoSuite and Randoop (based on original)
+        self._gen_automatic_tests(project_dir, mutants_dir, sut_class, randoop_params, evosuite_params)
         # **** Save the automatic tests alongside the dev tests (combined test set)
+
         # 4. Execute the combined test set to check if they are passing on original (eliminate in case of flaky)
+        self._try_combined_tests_on(project_dir)
+        # **** Stop execution in case of flaky tests
+
         # 5. Take the survived mutants (minus TCE eqv and dup) and execute the combined test set
-        # 6. For each mutant:
-        #    IF mutant killed: 
-        #       save the killer test, and GO TO ...
-        #    ELSE mutant not killed: 
-        #       save the coverage on mutant
-        #       execute EvoSuiteR with the mutant
-        #       IF EvoSuiteR find a test and kill the mutant:
-        #           Save the killer test
-        #           Add up this new test case to the combined test set
-        #           Label the mutant as Non-equivalent
-        #           Remove from survived set
-        # 7. Repeat steps 5 and 6 with all (survived) mutants
-        # 8. Take the survived mutant set  and the orignal, execute the combined test set
-        # **** Save the coverage (check if any other mutant kill)
-        # **** Compare coverage (and other information)
-        # 9. Rank the survived mutants according to coverage information
-        # 10. OUTCOME
-        # **** a) Set of equivalent mutants from TCE
-        # **** b) Set of duplicate mutants from TCE
-        # **** c) Set of non-equivalent mutants and the corresponding killer test-set
-        # **** d) A rank of last survived mutants to manual analysis
-
-
+            #    For each mutant:
+                #    IF mutant killed: 
+                #       save the killer test, and GO TO ...
+                #    ELSE mutant not killed: 
+                #       save the coverage on mutant
+                #       execute EvoSuiteR with the mutant
+                #       IF EvoSuiteR find a test and kill the mutant:
+                #           Save the killer test
+                #           Add up this new test case to the combined test set
+                #           Label the mutant as Non-equivalent
+                #           Remove from survived set
+        # ****
         
         results = {}
 
@@ -76,28 +121,27 @@ class Nimrod:
                                            else os.path.join(project_dir,
                                                              OUTPUT_DIR))
 
-        for mutant in self.get_mutants(classes_dir, mutants_dir):
+        #Configure mutant tool, compile mutants dir, and return the mutants set
+        mutants = self.get_mutants(classes_dir, mutants_dir) 
+        print("Total mutants: {0}".format(len(mutants)))
+        for mutant in mutants:
             start_time = time.time()
-            if self.check_mutant(mutant, sut_class):
-                tests_src = os.path.join(output_dir, 'suites', mutant.mid)
-
-
+            if self.check_mutant(mutant, sut_class): #Check if mutant (and dir) exists...
+                #Set the test suite dir for the mutant...
+                tests_src = os.path.join(output_dir, 'suites', mutant.mid) 
                 #Start Threads to generate the test suites
-                thread_evosuite_diff = threading.Thread(target=self.gen_evosuite_diff, args=(classes_dir, evosuite_diff_params, mutant, sut_class, tests_src))
-                thread_evosuite = threading.Thread(target=self.gen_evosuite, args=(classes_dir, evosuite_params, mutant, sut_class, tests_src))
-                thread_randoop = threading.Thread(target=self.gen_randoop, args=(classes_dir, mutant, randoop_params, sut_class, tests_src))
-
+                thread_evosuite_diff, thread_evosuite, thread_randoop = self.setup_test_generation_thread(sut_class, randoop_params, evosuite_diff_params, evosuite_params, classes_dir, mutant, tests_src)
+                
+                #Start the first thread
                 thread_evosuite_diff.start()
-
                 # Wait the generation of the Suite in the thread
                 thread_evosuite_diff.join()
                 #Start to execute the test suites...
                 test_result = self.try_evosuite_diff(classes_dir, tests_src,
                                                      sut_class, mutant,
-                                                     evosuite_diff_params)
+                                                     evosuite_diff_params)                
                 
-                
-                if test_result.fail_tests > 0 or test_result.timeout: #Se killed pelo EvoSuite Diff
+                if test_result.fail_tests > 0 or test_result.timeout: #If killed by EvoSuiteR Diff
                     results[mutant.mid] = self.create_nimrod_result(test_result,
                                                                     True, 'evosuite')
                 else:
@@ -146,6 +190,12 @@ class Nimrod:
 
         return results
 
+    def setup_test_generation_thread(self, sut_class, randoop_params, evosuite_diff_params, evosuite_params, classes_dir, mutant, tests_src):
+        thread_evosuite_diff = threading.Thread(target=self.gen_evosuite_diff, args=(classes_dir, evosuite_diff_params, mutant, sut_class, tests_src))
+        thread_evosuite = threading.Thread(target=self.gen_evosuite, args=(classes_dir, evosuite_params, mutant, sut_class, tests_src))
+        thread_randoop = threading.Thread(target=self.gen_randoop, args=(classes_dir, mutant, randoop_params, sut_class, tests_src))
+        return thread_evosuite_diff,thread_evosuite,thread_randoop
+
     @staticmethod
     def print_result( mutant, result):
         if result.maybe_equivalent:
@@ -156,6 +206,7 @@ class Nimrod:
                   .format(mutant.mid, 'Killed by differential test.' if
                           result.differential else ''))
 
+    #Check if mutant (and directory) exists...
     @staticmethod
     def check_mutant(mutant, sut_class):
         print("Analyzing mutant: {0}".format(mutant.mid))
@@ -170,7 +221,8 @@ class Nimrod:
         else:
             print('{0}: directory not found.'.format(mutant.mid))
             return False
-
+    
+    #Configure mutant tool, compile mutants dir, and return the mutants set
     def get_mutants(self, classpath, mutants_dir):        
         if('mujava' in mutants_dir):
             mujava = MuJava(self.java, mutants_dir)
