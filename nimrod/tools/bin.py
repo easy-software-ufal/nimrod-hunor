@@ -11,4 +11,6 @@ JMOCKIT = os.sep.join([PATH, 'bin', 'jmockit-1.40-marcio.1.jar'])
 RANDOOP = os.sep.join([PATH, 'bin', 'randoop-all-4.0.3.jar'])
 SAFIRA = os.sep.join([PATH, 'bin', 'safira.jar'])
 COMMONS_LANG_24 = os.sep.join([PATH, 'bin', 'commons-lang-2.4.jar'])
+SOOT = os.sep.join([PATH, 'bin', 'soot-trunk-previous.jar'])
+RT_JAR = os.sep.join([PATH, 'bin', 'rt.jar'])
 

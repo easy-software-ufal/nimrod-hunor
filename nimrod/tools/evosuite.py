@@ -86,8 +86,7 @@ class Evosuite(SuiteGenerator):
         if method_list.strip() != '':
             self.parameters.append('-Dtarget_method_list=\"' + method_list + '\"')
 
-        return super().generate(make_dir=False)   
-
+        return super().generate(make_dir=False) 
 
     def create_method_list(self, impact_analysis_result):   
         method_list = '' 

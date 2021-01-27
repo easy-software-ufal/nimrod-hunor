@@ -53,7 +53,7 @@ class TestNimrod(TestCase):
                              'br.ufal.ic.easy.operations.Sum',
                              randoop_params=['--time-limit=1'],
                              evosuite_params=['-Dsearch_budget=1'],
-                             output_dir=output_dir)
+                             nimrod_output_dir=output_dir)
 
         shutil.rmtree(output_dir)
         self.assertEqual(3, len(results))

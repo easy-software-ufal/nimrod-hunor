@@ -85,6 +85,17 @@ class Maven:
                            'compile').decode('unicode_escape')
         )
 
+    def test_compile(self, project_dir, timeout=TIMEOUT, clean=False):
+        if clean:
+            print("Cleaning up project with maven...")
+            self.clean(project_dir, TIMEOUT)
+
+        print("Compiling the test project with maven...")
+        return self.extract_results(
+            self._exec_mvn(project_dir, self.java.get_env(), timeout,
+                           'test-compile').decode('unicode_escape')
+        )
+
     @staticmethod
     def extract_results(output):
         output = re.findall('Compiling [0-9]* source files? to .*\n', output)

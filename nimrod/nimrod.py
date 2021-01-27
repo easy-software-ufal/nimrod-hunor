@@ -8,6 +8,7 @@ from nimrod.tools.mujava import MuJava
 from nimrod.tools.major import Major
 from nimrod.mutant import Mutant
 from nimrod.tools.safira import Safira
+from nimrod.tools.tce_detector import Tce
 from nimrod.tools.junit import JUnit, JUnitResult, Coverage
 from nimrod.tools.evosuite import Evosuite
 from nimrod.utils import package_to_dir
@@ -38,12 +39,74 @@ class Nimrod:
         self.mutants_surviving = None
 
 
-    def _try_tce(self, project_dir, mutants_dir, sut_class):
-        pass
+    def _try_tce(self, classes_dir, mutants_dir, sut_class):
+        try:         
+            #TODO - Fazer esquema para gerar na pasta temp  
+            mujava_res = "/home/leofernandesmo/workspace/easylab/tce/subjects/commons-cli2/result" 
+            exp_dir = "/home/leofernandesmo/workspace/easylab/tce/subjects/commons-cli2/ted"
 
-    def _gen_automatic_tests(self, project_dir, mutants_dir, sut_class, randoop_params, evosuite_params):
-        pass
+            self.tce = Tce(exp_dir, mujava_res)
+            # tce.optimize()
+            eqvs = self.tce.equivalents()
+            dups = self.tce.duplicates()
+            return (eqvs, dups)
+        except Exception as e:
+            print("ERRO NO TCE: " + e)
+
+
+    def _del_mutants(self, mutants_dir, mutants):
+        for mutant in mutants:
+            print(mutants_dir + "/" + mutant)
+
+    def _gen_automatic_tests(self, classes_dir, mutants_dir, nimrod_output_dir, sut_class, randoop_params, evosuite_params):        
+        #Set the test suite dir for the mutant...
+        generated_tests_src = os.path.join(nimrod_output_dir, 'suites')
+
+        thread_evosuite = threading.Thread(target=self._gen_evosuite, args=(classes_dir, evosuite_params, sut_class, generated_tests_src))
+        thread_randoop = threading.Thread(target=self._gen_randoop, args=(classes_dir, randoop_params, sut_class, generated_tests_src))
+
+        thread_evosuite.start()
+        thread_randoop.start()
+
+        # Wait the generation of the Suite in the thread
+        thread_evosuite.join()
+        # Wait the generation of the Suite in the thread
+        thread_randoop.join()
+        
+        return
     
+
+    def _gen_evosuite(self, classes_dir, evosuite_params, sut_class, tests_src):
+        evosuite = Evosuite(
+            java=self.java,
+            classpath=classes_dir,
+            tests_src=tests_src,
+            sut_class=sut_class,
+            params=evosuite_params
+        )        
+        self.suite_evosuite = evosuite.generate()
+        return self.suite_evosuite
+
+    def _gen_randoop(self, classes_dir, randoop_params, sut_class, tests_src):
+        randoop = Randoop(
+            java=self.java,
+            classpath=classes_dir,
+            tests_src=tests_src,
+            sut_class=sut_class,
+            params=randoop_params
+        )   
+        self.suite_randoop = randoop.generate()             
+        # if "Bisect" in sut_class:
+        #     self.suite_randoop = randoop.generate()
+        # else:
+        #     self.suite_randoop = randoop.generate_with_impact_analysis(safira)
+        #     if "Simulator" in sut_class:
+        #         import distutils.dir_util
+        #         distutils.dir_util.copy_tree("./config/", randoop.suite_dir + "/config/")
+        return self.suite_randoop
+
+
+
     def _try_combined_tests_on(self, project_dir):
         pass
 
@@ -81,23 +144,33 @@ class Nimrod:
     # **** c) Set of non-equivalent mutants and the corresponding killer test-set
     # **** d) A rank of last survived mutants to manual analysis
     def run(self, project_dir, mutants_dir, sut_class, randoop_params=None,
-            evosuite_diff_params=None, evosuite_params=None, output_dir=None):
-        
-        
+            evosuite_diff_params=None, evosuite_params=None, nimrod_output_dir=None):     
+
+        # Compile Project With Maven       
+        _, classes_dir = self.maven.compile(project_dir, clean=True)
+        # Compile Tests with Maven
+        _, test_classes_dir = self.maven.test_compile(project_dir)
+
+        nimrod_output_dir = self.check_output_dir(nimrod_output_dir if nimrod_output_dir
+                                           else os.path.join(project_dir,
+                                                             OUTPUT_DIR))        
+
         # 1. Execute the dev tests (through Maven) - IMPORTANT: Skip this line and take the survived mutants (in case of Defects4J)
         # **** Save the survived mutants
 
         # 2. Take the survived mutants and execute TCE
-        self._try_tce(project_dir, mutants_dir, sut_class)
+        equvs, dups = self._try_tce(classes_dir, mutants_dir, sut_class)
         # **** Remove TCE equivalents (log results)
         # **** Remove TCE duplicates (log results)
+        self._del_mutants(mutants_dir, equvs)
+        self._del_mutants(mutants_dir, dups)
 
         # 3. Generate automatic tests with EvoSuite and Randoop (based on original)
-        self._gen_automatic_tests(project_dir, mutants_dir, sut_class, randoop_params, evosuite_params)
+        self._gen_automatic_tests(classes_dir, mutants_dir, nimrod_output_dir, sut_class, randoop_params, evosuite_params)
         # **** Save the automatic tests alongside the dev tests (combined test set)
 
         # 4. Execute the combined test set to check if they are passing on original (eliminate in case of flaky)
-        self._try_combined_tests_on(project_dir)
+        self._try_combined_tests_on(classes_dir)
         # **** Stop execution in case of flaky tests
 
         # 5. Take the survived mutants (minus TCE eqv and dup) and execute the combined test set
@@ -114,10 +187,17 @@ class Nimrod:
                 #           Remove from survived set
         # ****
         
+
+
+
+
+
+
+
         results = {}
 
         _, classes_dir = self.maven.compile(project_dir, clean=True)        
-        output_dir = self.check_output_dir(output_dir if output_dir
+        nimrod_output_dir = self.check_output_dir(nimrod_output_dir if nimrod_output_dir
                                            else os.path.join(project_dir,
                                                              OUTPUT_DIR))
 
@@ -128,7 +208,7 @@ class Nimrod:
             start_time = time.time()
             if self.check_mutant(mutant, sut_class): #Check if mutant (and dir) exists...
                 #Set the test suite dir for the mutant...
-                tests_src = os.path.join(output_dir, 'suites', mutant.mid) 
+                tests_src = os.path.join(nimrod_output_dir, 'suites', mutant.mid) 
                 #Start Threads to generate the test suites
                 thread_evosuite_diff, thread_evosuite, thread_randoop = self.setup_test_generation_thread(sut_class, randoop_params, evosuite_diff_params, evosuite_params, classes_dir, mutant, tests_src)
                 
@@ -180,7 +260,7 @@ class Nimrod:
 
                 self.print_result(mutant, results[mutant.mid])
                 exec_time = time.time() - start_time
-                self.write_to_csv(results[mutant.mid], mutant, output_dir, exec_time=exec_time)
+                self.write_to_csv(results[mutant.mid], mutant, nimrod_output_dir, exec_time=exec_time)
                 if thread_evosuite_diff.is_alive():
                     thread_evosuite_diff.join()
                 if thread_evosuite.is_alive():
