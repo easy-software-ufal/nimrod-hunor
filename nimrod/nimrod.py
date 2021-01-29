@@ -39,19 +39,24 @@ class Nimrod:
         self.mutants_surviving = None
 
 
-    def _try_tce(self, classes_dir, mutants_dir, sut_class):
+    def _try_tce(self, project_dir, classes_dir, mutants_dir, sut_class):
         try:         
-            #TODO - Fazer esquema para gerar na pasta temp  
+            #TODO - Fazer esquema para gerar na pasta temp              
             mujava_res = "/home/leofernandesmo/workspace/easylab/tce/subjects/commons-cli2/result" 
             exp_dir = "/home/leofernandesmo/workspace/easylab/tce/subjects/commons-cli2/ted"
+            # self.tce = Tce(exp_dir, mujava_res)
+            self.tce = Tce(self.java)
 
-            self.tce = Tce(exp_dir, mujava_res)
-            # tce.optimize()
+            # "output_dir is a temp directory to TCE execute"            
+            temp_dir = self.tce.setup_tce_structure(project_dir, mutants_dir, project_dir + "/tce", sut_class)            
+            self.tce.optimize()
             eqvs = self.tce.equivalents()
             dups = self.tce.duplicates()
+            temp_dir.cleanup()
+
             return (eqvs, dups)
         except Exception as e:
-            print("ERRO NO TCE: " + e)
+            print("ERRO NO TCE: " + str(e))
 
 
     def _del_mutants(self, mutants_dir, mutants):
@@ -105,10 +110,10 @@ class Nimrod:
         #         distutils.dir_util.copy_tree("./config/", randoop.suite_dir + "/config/")
         return self.suite_randoop
 
-
-
     def _try_combined_tests_on(self, project_dir):
         pass
+
+
 
     # #####  EXPERIMENT ALGORITHM #####
     #
@@ -150,7 +155,7 @@ class Nimrod:
         _, classes_dir = self.maven.compile(project_dir, clean=True)
         # Compile Tests with Maven
         _, test_classes_dir = self.maven.test_compile(project_dir)
-
+        # get outcome results
         nimrod_output_dir = self.check_output_dir(nimrod_output_dir if nimrod_output_dir
                                            else os.path.join(project_dir,
                                                              OUTPUT_DIR))        
@@ -159,7 +164,7 @@ class Nimrod:
         # **** Save the survived mutants
 
         # 2. Take the survived mutants and execute TCE
-        equvs, dups = self._try_tce(classes_dir, mutants_dir, sut_class)
+        equvs, dups = self._try_tce(project_dir, classes_dir, mutants_dir, sut_class)
         # **** Remove TCE equivalents (log results)
         # **** Remove TCE duplicates (log results)
         self._del_mutants(mutants_dir, equvs)

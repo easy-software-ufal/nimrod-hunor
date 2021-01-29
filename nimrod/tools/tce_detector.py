@@ -1,9 +1,15 @@
 import os
 import re
 import time
+import subprocess
+import shutil
+import tempfile
 
+from distutils.dir_util import copy_tree
+from pathlib import Path
 from nimrod.tools.tce.src import main
-from nimrod.tools.bin import SOOT, RT_JAR
+from nimrod.tools.bin import SOOT, RT_JAR, COMMONS_LANG_24
+
 
 TIMEOUT = 40
 
@@ -14,7 +20,8 @@ TIMEOUT = 40
 
 class Tce:
 
-    def __init__(self, exp_dir, mujava_res):
+    def __init__(self, java, exp_dir="", mujava_res=""):
+        self.java = java
         self.mujava_res = mujava_res
         self.exp_dir = exp_dir
         self.equiv_mutants = []
@@ -111,3 +118,115 @@ class Tce:
         results = self.exec(action)       
         return results
 
+    #python3 src/major-adapter/subject_analysis_setup_tce.py 
+      # -i /home/leofernandesmo/workspace/easylab/defects4j/subjects/cli_2_fixed 
+      # -o /home/leofernandesmo/workspace/easylab/tce/subjects/commons-cli2 
+      # -c org.apache.commons.cli.PosixParser
+    #Create a temp folder to execute TCE. 
+    #TCE strictly wait a MuJava-like folder structure.
+    def setup_tce_structure(self, project_dir, mutants_dir, output_dir, class_name):        
+        temp_dir = tempfile.TemporaryDirectory()
+        print('Creating TCE structure in a temp diectory: ')        
+        Tce._makeup_struct(temp_dir.name, class_name)                   
+        print('Copying source files to TCE...')
+        Tce._copy_src(project_dir, temp_dir.name)
+        print('Copying class files to TCE...')
+        Tce._copy_class(project_dir, temp_dir.name)        
+        print('Copying mutant files to TCE...')
+        Tce._copy_mutants(mutants_dir, temp_dir.name)
+        Tce._compile_mutants(self.java, project_dir, temp_dir.name, class_name)
+        Tce._organize_in_dirs(project_dir, mutants_dir, temp_dir.name, class_name)
+        #Tce._copy_major_mutation_result(input_dir, output_dir)
+        # temp_dir.cleanup()
+        self.exp_dir=temp_dir.name + "/ted"
+        self.mujava_res= temp_dir.name + "/result"
+        return temp_dir
+        
+    
+    @staticmethod
+    def _makeup_struct(temp_dir, class_name):
+        # if os.path.exists(temp_dir) and os.path.isdir(temp_dir):
+        #     shutil.rmtree(temp_dir)                
+        Path(temp_dir + '/src').mkdir(parents=True, exist_ok=True)    
+        Path(temp_dir + '/classes').mkdir(parents=True, exist_ok=True)    
+        Path(temp_dir + '/result').mkdir(parents=True, exist_ok=True)    
+        Path(temp_dir + '/result/' + class_name).mkdir(parents=True, exist_ok=True)    
+        Path(temp_dir + '/result/' + class_name + '/class_mutants').mkdir(parents=True, exist_ok=True)    
+        Path(temp_dir + '/result/' + class_name + '/original').mkdir(parents=True, exist_ok=True)            
+        Path(temp_dir + '/result/' + class_name + '/traditional_mutants/method').mkdir(parents=True, exist_ok=True)    
+        Path(temp_dir + '/ted/bin').mkdir(parents=True, exist_ok=True)    
+        Path(temp_dir + '/ted/optimisations').mkdir(parents=True, exist_ok=True)    
+        Path(temp_dir + '/mutants-info').mkdir(parents=True, exist_ok=True)
+        Path(temp_dir + '/livemutants').mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _copy_class(input, output):
+        src_dir = input + '/target/classes/'
+        dest_dir = output + '/classes/'        
+        copy_tree(src_dir, dest_dir)
+        # Copiando p/ pasta ted/bin
+        dest_dir = output + '/ted/bin/'    
+        copy_tree(src_dir, dest_dir)    
+
+    @staticmethod
+    def _copy_src(input, output):
+        src_dir = input + '/src/main/java'
+        #  src_dir = input + '/src/java'
+        dest_dir = output + '/src/'        
+        copy_tree(src_dir, dest_dir)
+
+    @staticmethod
+    def _copy_mutants(mutants_dir, temp_dir):
+        src_dir = mutants_dir 
+        dest_dir = temp_dir + '/livemutants'        
+        copy_tree(src_dir, dest_dir)
+    
+    
+    @staticmethod
+    def _compile_mutants(java, project_dir, temp_dir, class_name):
+        src_mutants_dir = temp_dir + '/livemutants/'
+        classpath = project_dir + '/target/classes/'
+        classpath += ':'+ COMMONS_LANG_24
+        need_compile = True
+        for path in Path(src_mutants_dir).rglob('*.class'):
+            need_compile = False
+        if(need_compile):
+            java.compile_all(classpath, src_mutants_dir)
+        # for path in Path(src_mutants_dir).rglob('*.java'):
+        #     # command = '/home/leofernandesmo/workspace/easylab/defects4j/major/bin/javac -cp "%s" %s' % (classpath, path) # Compila como major
+        #     command = 'javac -cp "%s" %s' % (classpath, path) #Compila com Java normal
+        #     print('Compiling: ===> ', command)
+        #     subprocess.call(command, shell=True)
+        
+
+    @staticmethod
+    def _organize_in_dirs(project_dir, mutants_dir, temp_dir, class_name):
+        src_mutants_dir = temp_dir + '/livemutants/'
+        src_mutants_log = ''
+        if('mujava' in mutants_dir):
+            src_mutants_log = src_mutants_dir + '/mutation_log'
+        elif('major' in mutants_dir):
+            src_mutants_log = src_mutants_dir + '/mutants.log'
+        dest1 = temp_dir + '/result/' + class_name + '/traditional_mutants'
+        dest2 = temp_dir + '/result/' + class_name + '/traditional_mutants/method'
+        print('Copying mutants...')
+        destination1 = shutil.copy2(src_mutants_log, dest1) 
+        copy_tree(src_mutants_dir, dest2 )
+        # Copia para pasta original
+        src_dir = project_dir + '/target/classes/'
+        dest3 = temp_dir + '/result/' + class_name + '/original'
+        copy_tree(src_dir, dest3 )     
+
+    @staticmethod
+    def _copy_major_mutation_result(self, input, output):
+        # Copia os logs gerados pelo major
+        print('Copying major results...')
+        src_mutants_log = input + '/.mutation.log'
+        src_kill_log = input + '/kill.csv'
+        src_summary_log = input + '/summary.csv'
+        src_testMap_log = input + '/testMap.csv'
+        dest = output + '/mutants-info'
+        shutil.copy2(src_mutants_log, dest) 
+        shutil.copy2(src_kill_log, dest) 
+        shutil.copy2(src_summary_log, dest) 
+        shutil.copy2(src_testMap_log, dest)   

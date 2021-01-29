@@ -91,10 +91,14 @@ class Maven:
             self.clean(project_dir, TIMEOUT)
 
         print("Compiling the test project with maven...")
-        return self.extract_results(
+        extraction_result = self.extract_results(
             self._exec_mvn(project_dir, self.java.get_env(), timeout,
-                           'test-compile').decode('unicode_escape')
-        )
+                           'test-compile').decode('unicode_escape'))
+        if extraction_result is None: #means there is no test directory
+            return MavenResults(None, None)
+        else:
+            return extraction_result    
+
 
     @staticmethod
     def extract_results(output):
