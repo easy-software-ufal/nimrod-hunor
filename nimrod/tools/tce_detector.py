@@ -124,23 +124,20 @@ class Tce:
       # -c org.apache.commons.cli.PosixParser
     #Create a temp folder to execute TCE. 
     #TCE strictly wait a MuJava-like folder structure.
-    def setup_tce_structure(self, project_dir, mutants_dir, output_dir, class_name):        
-        temp_dir = tempfile.TemporaryDirectory()
+    def setup_tce_structure(self, original_project_dir, original_mutants_dir, temp_dir, sut_class):        
+        
         print('Creating TCE structure in a temp diectory: ')        
-        Tce._makeup_struct(temp_dir.name, class_name)                   
+        Tce._makeup_struct(temp_dir, sut_class)                   
         print('Copying source files to TCE...')
-        Tce._copy_src(project_dir, temp_dir.name)
+        Tce._copy_src(original_project_dir, temp_dir)
         print('Copying class files to TCE...')
-        Tce._copy_class(project_dir, temp_dir.name)        
+        Tce._copy_class(original_project_dir, temp_dir)        
         print('Copying mutant files to TCE...')
-        Tce._copy_mutants(mutants_dir, temp_dir.name)
-        Tce._compile_mutants(self.java, project_dir, temp_dir.name, class_name)
-        Tce._organize_in_dirs(project_dir, mutants_dir, temp_dir.name, class_name)
-        #Tce._copy_major_mutation_result(input_dir, output_dir)
-        # temp_dir.cleanup()
-        self.exp_dir=temp_dir.name + "/ted"
-        self.mujava_res= temp_dir.name + "/result"
-        return temp_dir
+        Tce._copy_mutants(original_mutants_dir, temp_dir)
+        Tce._compile_mutants(self.java, original_project_dir, temp_dir, sut_class)
+        Tce._organize_in_dirs(original_project_dir, original_mutants_dir, temp_dir, sut_class)
+        #Tce._copy_major_mutation_result(input_dir, output_dir)        
+                
         
     
     @staticmethod

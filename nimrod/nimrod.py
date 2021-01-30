@@ -2,6 +2,7 @@ import os
 import shutil
 import time
 import threading
+import tempfile
 
 from nimrod.tools.randoop import Randoop
 from nimrod.tools.mujava import MuJava
@@ -41,22 +42,17 @@ class Nimrod:
 
     def _try_tce(self, project_dir, classes_dir, mutants_dir, sut_class):
         try:         
-            #TODO - Fazer esquema para gerar na pasta temp              
-            mujava_res = "/home/leofernandesmo/workspace/easylab/tce/subjects/commons-cli2/result" 
-            exp_dir = "/home/leofernandesmo/workspace/easylab/tce/subjects/commons-cli2/ted"
-            # self.tce = Tce(exp_dir, mujava_res)
-            self.tce = Tce(self.java)
-
-            # "output_dir is a temp directory to TCE execute"            
-            temp_dir = self.tce.setup_tce_structure(project_dir, mutants_dir, project_dir + "/tce", sut_class)            
+            tce_temp_dir = tempfile.TemporaryDirectory()            
+            self.tce = Tce(self.java, tce_temp_dir.name + "/ted", tce_temp_dir.name + "/result")                  
+            self.tce.setup_tce_structure(project_dir, mutants_dir, tce_temp_dir.name, sut_class)            
             self.tce.optimize()
             eqvs = self.tce.equivalents()
             dups = self.tce.duplicates()
-            temp_dir.cleanup()
+            tce_temp_dir.cleanup()
 
             return (eqvs, dups)
         except Exception as e:
-            print("ERRO NO TCE: " + str(e))
+            print("**ERRO NO TCE: " + str(e))
 
 
     def _del_mutants(self, mutants_dir, mutants):
@@ -164,11 +160,10 @@ class Nimrod:
         # **** Save the survived mutants
 
         # 2. Take the survived mutants and execute TCE
-        equvs, dups = self._try_tce(project_dir, classes_dir, mutants_dir, sut_class)
-        # **** Remove TCE equivalents (log results)
-        # **** Remove TCE duplicates (log results)
-        self._del_mutants(mutants_dir, equvs)
-        self._del_mutants(mutants_dir, dups)
+        eqvs, dups = self._try_tce(project_dir, classes_dir, mutants_dir, sut_class)
+        # **** Remove TCE equivalents and duplicates (TODO: need log results before)        
+        self._del_mutants(mutants_dir, set(eqvs+dups))
+        
 
         # 3. Generate automatic tests with EvoSuite and Randoop (based on original)
         self._gen_automatic_tests(classes_dir, mutants_dir, nimrod_output_dir, sut_class, randoop_params, evosuite_params)
