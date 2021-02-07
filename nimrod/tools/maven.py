@@ -60,8 +60,8 @@ class Maven:
                                            stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
             print('MAVEN: call process error with arguments {0}.'.format(args),
-                  file=sys.stderr)
-            raise e
+                  file=sys.stderr)            
+            return e.output
         except subprocess.TimeoutExpired as e:
             print('MAVEN: timeout with arguments {0}.'.format(args),
                   file=sys.stderr)
@@ -93,17 +93,56 @@ class Maven:
         print("Compiling the test project with maven...")
         extraction_result = self.extract_results(
             self._exec_mvn(project_dir, self.java.get_env(), timeout,
-                           'test-compile').decode('unicode_escape'))
+                           'test-compile').decode('unicode_escape'), True)
         if extraction_result is None: #means there is no test directory
             return MavenResults(None, None)
         else:
             return extraction_result    
 
 
+    def test(self, project_dir, timeout=TIMEOUT, clean=False):
+        if clean:
+            print("Cleaning up project with maven...")
+            self.clean(project_dir, TIMEOUT)
+
+        print("Testing the project with maven...")
+        return self.extract_test_results(
+            self._exec_mvn(project_dir, self.java.get_env(), timeout,
+                           'test').decode('unicode_escape')
+        )
+
     @staticmethod
-    def extract_results(output):
-        output = re.findall('Compiling [0-9]* source files? to .*\n', output)
-        if output:
-            output = output[0].replace('\n', '').split()
-            return MavenResults(int(output[1]), output[-1])
+    def extract_results(output, is_test_code=False):
+        output_result = re.findall('Compiling [0-9]* source files? to .*\n', output)
+        if output_result:
+            if(is_test_code):
+                output_result = [result for result in output_result if "test" in result]            
+            output_result = output_result[0].replace('\n', '').split()
+            return MavenResults(int(output_result[1]), output_result[-1])
         return None
+
+    @staticmethod
+    def extract_test_results(output, is_test_code=False):
+        failed_tests = []
+        num_tests = 0
+        num_failures = 0
+        num_errors = 0
+        num_skipped = 0
+        output_by_line = output.split("\n")        
+        is_results = False
+        for line in output_by_line:
+            if("Results :" in line):
+                is_results = True
+            elif("Finished at:" in line):
+                is_results = False
+            
+            if(is_results and "expected:" in line):
+                failed_tests.append(line.replace('\n', '').strip())        
+            elif(is_results and "Tests run:" in line):  
+                temp = line.split(",") 
+                num_tests = int(temp[0][temp[0].find(":")+1:].strip())
+                num_failures = int(temp[1][temp[1].find(":")+1:].strip())
+                num_errors = int(temp[2][temp[2].find(":")+1:].strip())
+                num_skipped = int(temp[3][temp[3].find(":")+1:].strip())
+
+        return (num_tests, num_failures, num_errors, num_skipped, failed_tests)

@@ -1,4 +1,5 @@
 import os
+from distutils.dir_util import copy_tree
 
 
 def get_class_files(path):
@@ -32,3 +33,6 @@ def package_to_dir(package):
 
 def dir_to_package(directory):
     return directory.replace(os.sep, '.')
+
+def copy_dir(input, output):    
+    copy_tree(input, output)    
