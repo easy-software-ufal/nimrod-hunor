@@ -60,7 +60,8 @@ class Evosuite(SuiteGenerator):
             '-projectCP', self.classpath + ':' + COMMONS_LANG_24,
             '-Dregressioncp=' + mutants_classpath,
             '-class', self.sut_class,
-            '-DOUTPUT_DIR=' + self.suite_dir
+            '-DOUTPUT_DIR=' + self.suite_dir,
+            '-Djunit_suffix=' + '_' + self.suite_name + '_ESTest'
         ]
 
         params += self.parameters

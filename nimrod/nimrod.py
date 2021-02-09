@@ -1,4 +1,5 @@
 import os
+from os.path import isdir
 import shutil
 import time
 import threading
@@ -10,7 +11,8 @@ from nimrod.tools.major import Major
 from nimrod.mutant import Mutant
 from nimrod.tools.safira import Safira
 from nimrod.tools.tce_detector import Tce
-from nimrod.tools.junit import JUnit, JUnitResult, Coverage
+from nimrod.tools.junit import JUnit, JUnitResult
+from nimrod.coverage import Coverage
 from nimrod.tools.evosuite import Evosuite
 from nimrod.utils import package_to_dir, copy_dir
 
@@ -187,93 +189,122 @@ class Nimrod:
                 #           Remove from survived set
         # ****
         #Configure mutant tool, compile mutants dir, and return the mutants set
+        nimrod_non_equivs = set()
+        nimrod_survived_muts = set()
         mutants = self.get_mutants(orig_classes_dir, mutants_dir) 
-        print("Total mutants: {0}".format(len(mutants)))
+        # print("Total mutants: {0}".format(len(mutants)))  # esse numero nao eh real, pois soh pega os mutantes do arq de log
         for mutant in mutants:
-            print(mutant)
-        
-
-
-
-
-
-
-
-        results = {}
-
-        _, orig_classes_dir = self.maven.compile(orig_project_dir, clean=True)        
-        nimrod_output_dir = self.check_output_dir(nimrod_output_dir if nimrod_output_dir
-                                           else os.path.join(orig_project_dir,
-                                                             OUTPUT_DIR))
-
-        #Configure mutant tool, compile mutants dir, and return the mutants set
-        mutants = self.get_mutants(orig_classes_dir, mutants_dir) 
-        print("Total mutants: {0}".format(len(mutants)))
-        for mutant in mutants:
-            start_time = time.time()
-            if self.check_mutant(mutant, sut_class): #Check if mutant (and dir) exists...
-                #Set the test suite dir for the mutant...
-                tests_src = os.path.join(nimrod_output_dir, 'suites', mutant.mid) 
-                #Start Threads to generate the test suites
-                thread_evosuite_diff, thread_evosuite, thread_randoop = self.setup_test_generation_thread(sut_class, randoop_params, evosuite_diff_params, evosuite_params, orig_classes_dir, mutant, tests_src)
-                
-                #Start the first thread
-                thread_evosuite_diff.start()
-                # Wait the generation of the Suite in the thread
-                thread_evosuite_diff.join()
-                #Start to execute the test suites...
-                test_result = self.try_evosuite_diff(orig_classes_dir, tests_src,
-                                                     sut_class, mutant,
-                                                     evosuite_diff_params)                
-                
+            # Does not exec TCE eqvs and dupl mutants
+            # if (mutant in tce_eqvs or mutant in tce_dups):
+            #     continue
+            if(os.path.isdir(mutant.dir)):      
+                evosuite_diff_output_dir = self.gen_evosuite_diff(orig_classes_dir, evosuite_diff_params, mutant, sut_class, auto_generated_tests_dir)                
+                test_result = self.try_evosuite_diff(orig_classes_dir, evosuite_diff_output_dir, sut_class, mutant,
+                                                     evosuite_diff_params)
                 if test_result.fail_tests > 0 or test_result.timeout: #If killed by EvoSuiteR Diff
-                    results[mutant.mid] = self.create_nimrod_result(test_result,
-                                                                    True, 'evosuite')
+                    print("Mutant {0} was killed by EvoSuiteR".format(mutant.mid))
+                    nimrod_non_equivs.add(mutant)
+
                 else:
-                    thread_evosuite.start()
-                    thread_randoop.start()
-                    # Wait the generation of the Suite in the thread
-                    thread_evosuite.join()
-                    # EvoSuite tests generated, time to execute with original to check all tests pass
-                    evo_test_result_original = self.try_evosuite(orig_classes_dir, tests_src,
-                                                        sut_class, original,
-                                                        evosuite_params)
+                    print("Mutant {0} was NOT killed by EvoSuiteR".format(mutant.mid))    
+                    nimrod_survived_muts.add(mutant)
+            else:
+                pass
+                # print("Discarded mutant: {0}. There is no valid class file".format(mutant.mid))    
 
-                    evo_test_result = self.try_evosuite(orig_classes_dir, tests_src,
-                                                        sut_class, mutant,
-                                                        evosuite_params)
-                    if evo_test_result and (evo_test_result.fail_tests > 0
-                                            or evo_test_result.timeout): #Se Killed pelo EvoSuite
-                        results[mutant.mid] = self.create_nimrod_result(
-                            evo_test_result, False, 'evosuite')
-                    else:
-                        # Wait the generation of the Suite in the thread
-                        thread_randoop.join()
-                        ran_test_result = self.try_randoop(
-                            orig_classes_dir, tests_src, sut_class, mutant,
-                            randoop_params)
-                        if ran_test_result and (ran_test_result.fail_tests > 0
-                                                or ran_test_result.timeout): #Se killed pelo Randoop
-                            results[mutant.mid] = self.create_nimrod_result(
-                                ran_test_result, False, 'randoop')
-                        else:
-                            # If no test kill, check coverage with original
-                            is_equal_coverage = self.check_class_coverage(orig_classes_dir,
-                                                        sut_class, mutant, evo_test_result, ran_test_result)
-                            results[mutant.mid] = self.sum_nimrod_result(
-                                ran_test_result, evo_test_result, False, is_equal_coverage=is_equal_coverage)
+        #Calcular o Coverage e montar o Rank
+        for survived_mutant in nimrod_survived_muts:
+            #  Executa o os testes combinados com o mutante que nao morreu com EvoSuiteR
+            copy_dir(mutant.dir, orig_classes_dir)     
+            # TODO Precisa copiar os testes gerados com EvoSuiteR para pasta principal, antes de calcular o Coverage           
+            num_tests, num_failures, num_errors, num_skipped, failed_tests = self.maven.test(orig_project_dir)
+            if(num_failures > 0 or num_errors > 0):
+                print("ERRO!!!!!")
 
-                self.print_result(mutant, results[mutant.mid])
-                exec_time = time.time() - start_time
-                self.write_to_csv(results[mutant.mid], mutant, nimrod_output_dir, exec_time=exec_time)
-                if thread_evosuite_diff.is_alive():
-                    thread_evosuite_diff.join()
-                if thread_evosuite.is_alive():
-                    thread_evosuite.join()
-                if thread_randoop.is_alive():
-                    thread_randoop.join()
+            
 
-        return results
+
+
+
+
+
+
+
+        # results = {}
+
+        # _, orig_classes_dir = self.maven.compile(orig_project_dir, clean=True)        
+        # nimrod_output_dir = self.check_output_dir(nimrod_output_dir if nimrod_output_dir
+        #                                    else os.path.join(orig_project_dir,
+        #                                                      OUTPUT_DIR))
+
+        # #Configure mutant tool, compile mutants dir, and return the mutants set
+        # mutants = self.get_mutants(orig_classes_dir, mutants_dir) 
+        # print("Total mutants: {0}".format(len(mutants)))
+        # for mutant in mutants:
+        #     start_time = time.time()
+        #     if self.check_mutant(mutant, sut_class): #Check if mutant (and dir) exists...
+        #         #Set the test suite dir for the mutant...
+        #         tests_src = os.path.join(nimrod_output_dir, 'suites', mutant.mid) 
+        #         #Start Threads to generate the test suites
+        #         thread_evosuite_diff, thread_evosuite, thread_randoop = self.setup_test_generation_thread(sut_class, randoop_params, evosuite_diff_params, evosuite_params, orig_classes_dir, mutant, tests_src)
+                
+        #         #Start the first thread
+        #         thread_evosuite_diff.start()
+        #         # Wait the generation of the Suite in the thread
+        #         thread_evosuite_diff.join()
+        #         #Start to execute the test suites...
+        #         test_result = self.try_evosuite_diff(orig_classes_dir, tests_src,
+        #                                              sut_class, mutant,
+        #                                              evosuite_diff_params)                
+                
+        #         if test_result.fail_tests > 0 or test_result.timeout: #If killed by EvoSuiteR Diff
+        #             results[mutant.mid] = self.create_nimrod_result(test_result,
+        #                                                             True, 'evosuite')
+        #         else:
+        #             thread_evosuite.start()
+        #             thread_randoop.start()
+        #             # Wait the generation of the Suite in the thread
+        #             thread_evosuite.join()
+        #             # EvoSuite tests generated, time to execute with original to check all tests pass
+        #             evo_test_result_original = self.try_evosuite(orig_classes_dir, tests_src,
+        #                                                 sut_class, original,
+        #                                                 evosuite_params)
+
+        #             evo_test_result = self.try_evosuite(orig_classes_dir, tests_src,
+        #                                                 sut_class, mutant,
+        #                                                 evosuite_params)
+        #             if evo_test_result and (evo_test_result.fail_tests > 0
+        #                                     or evo_test_result.timeout): #Se Killed pelo EvoSuite
+        #                 results[mutant.mid] = self.create_nimrod_result(
+        #                     evo_test_result, False, 'evosuite')
+        #             else:
+        #                 # Wait the generation of the Suite in the thread
+        #                 thread_randoop.join()
+        #                 ran_test_result = self.try_randoop(
+        #                     orig_classes_dir, tests_src, sut_class, mutant,
+        #                     randoop_params)
+        #                 if ran_test_result and (ran_test_result.fail_tests > 0
+        #                                         or ran_test_result.timeout): #Se killed pelo Randoop
+        #                     results[mutant.mid] = self.create_nimrod_result(
+        #                         ran_test_result, False, 'randoop')
+        #                 else:
+        #                     # If no test kill, check coverage with original
+        #                     is_equal_coverage = self.check_class_coverage(orig_classes_dir,
+        #                                                 sut_class, mutant, evo_test_result, ran_test_result)
+        #                     results[mutant.mid] = self.sum_nimrod_result(
+        #                         ran_test_result, evo_test_result, False, is_equal_coverage=is_equal_coverage)
+
+        #         self.print_result(mutant, results[mutant.mid])
+        #         exec_time = time.time() - start_time
+        #         self.write_to_csv(results[mutant.mid], mutant, nimrod_output_dir, exec_time=exec_time)
+        #         if thread_evosuite_diff.is_alive():
+        #             thread_evosuite_diff.join()
+        #         if thread_evosuite.is_alive():
+        #             thread_evosuite.join()
+        #         if thread_randoop.is_alive():
+        #             thread_randoop.join()
+
+        # return results
 
     def setup_test_generation_thread(self, sut_class, randoop_params, evosuite_diff_params, evosuite_params, classes_dir, mutant, tests_src):
         thread_evosuite_diff = threading.Thread(target=self.gen_evosuite_diff, args=(classes_dir, evosuite_diff_params, mutant, sut_class, tests_src))
