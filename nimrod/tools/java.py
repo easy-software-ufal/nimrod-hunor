@@ -107,5 +107,5 @@ class Java:
                 class_file = os.path.join(directory,
                                           java_file.replace('.java', '.class'))
                 if not os.path.exists(class_file):
-                    self.exec_javac(java_file, directory, None, None,
+                    self.exec_javac(directory + '/' + java_file, directory, None, None,
                                     '-classpath', classpath)

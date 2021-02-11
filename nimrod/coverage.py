@@ -40,17 +40,14 @@ class JMockit:
         # self._set_home()
         # self._check()
 
-    def coverage(self, mutation_line):
-        return self.get_coverage_report(mutation_line)
-
-    def get_coverage_report(self, mutation_line):
+    def coverage(self):
         report_file = self.get_coverage_report_file()
-
         if report_file:
             with open(report_file, 'r') as html:
                 soup = BeautifulSoup(html, 'html.parser')
-                return JMockit._get_coverage_info(soup, mutation_line)
+                return JMockit._get_coverage_info(soup)
 
+    
     def get_coverage_report_file(self):
         coverage_report = os.path.join(self.suite_dir, 'coverage-report',
                                        package_to_dir(self.sut_class) + '.html')
@@ -58,28 +55,9 @@ class JMockit:
         return coverage_report if os.path.exists(coverage_report) else None
 
     @staticmethod
-    def _get_coverage_info(soup, mutation_line):
-        test_cases = set()
-        call_points = set()
-        executions = 0
-
-        for tr in soup.find_all('tr'):
-            td_line = tr.find_all('td', class_='line')
-            td_executions = tr.find_all('td', class_='count')
-            td_count = tr.find_all('td', class_='callpoints-count')
-            if (td_line and td_count and td_executions
-                    and mutation_line == int(td_line[0].string)):
-                executions = int(td_executions[0].string.strip())
-                for li in tr.find_all('li'):
-                    info = JMockit._extract_li(li)
-                    if info:
-                        file, test_case, cps = info
-                        test_cases.add((file, test_case))
-                        for cp in cps:
-                            call_points.add((file, test_case, cp))
-
-        class_coverage =  JMockit._get_coverage_info_class(soup)        
-        return Coverage(call_points, test_cases, executions, class_coverage)
+    def _get_coverage_info(soup):
+        class_coverage =  JMockit._get_coverage_info_class2(soup)        
+        return class_coverage
 
 
 
@@ -98,6 +76,27 @@ class JMockit:
                 class_coverage_line[line] = executions
         return class_coverage_line
 
+
+    @staticmethod
+    def _get_coverage_info_class2(soup):  
+        class_coverage = dict()
+        for tr in soup.find_all('tr'):            
+            td_line = tr.find('td').get_text()
+            td_executions = tr.find_all('td', class_='ct')
+            if(td_line.isnumeric() and td_executions):
+                line = int(td_line)                    
+                executions = int(td_executions[0].string.strip())                
+                class_coverage[line] = (executions, None, None, None)                                            
+                call_points = set()
+                for li in tr.find_all('li'):
+                    info = JMockit._extract_li(li)
+                    if info:
+                        file, test_case, cps = info                            
+                        for cp in cps:
+                            call_points.add((file, test_case, cp))
+                class_coverage[line] = (executions, call_points)                    
+        return class_coverage
+
     @staticmethod
     def _extract_li(li):
         li = li.string.split(':')
@@ -111,4 +110,9 @@ class JMockit:
             except IndexError:
                 return None
 
-
+    @staticmethod
+    def _get_mutation_line_info(class_coverage, mutation_line):
+        if(mutation_line in class_coverage):
+            executions, call_points = class_coverage[mutation_line]
+            return (mutation_line, executions, call_points)
+        return (mutation_line, 0, set()) 

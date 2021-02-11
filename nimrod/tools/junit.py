@@ -225,7 +225,7 @@ class JUnit:
     @staticmethod
     def run_coverage(suite_dir, sut_class, mutation_line):
         jmockit = JMockit(suite_dir, sut_class)
-        return jmockit.coverage(mutation_line)
+        return jmockit.coverage()
 
 
 

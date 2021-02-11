@@ -108,19 +108,19 @@ class Maven:
         print("Testing the project with maven...")
         return self.extract_test_results(
             self._exec_mvn(project_dir, self.java.get_env(), timeout,
-                           'test').decode('unicode_escape')
+                           'surefire:test', '-Dmaven.test.failure.ignore=true').decode('unicode_escape')
         )
 
-    def test_with_coverage(self, project_dir, cov_output_dir, timeout=TIMEOUT, clean=False):
-        if clean:
-            print("Cleaning up project with maven...")
-            self.clean(project_dir, TIMEOUT)
+    # def test_with_coverage(self, project_dir, cov_output_dir, timeout=TIMEOUT, clean=False):
+    #     if clean:
+    #         print("Cleaning up project with maven...")
+    #         self.clean(project_dir, TIMEOUT)
 
-        print("Testing the project with maven...")
-        return self.extract_test_results(
-            self._exec_mvn(project_dir, self.java.get_env(), timeout,
-                           'test -Dcoverage-outputDir=' + cov_output_dir).decode('unicode_escape')
-        )    
+    #     print("Testing the project with maven...")
+    #     return self.extract_test_results(
+    #         self._exec_mvn(project_dir, self.java.get_env(), timeout,
+    #                        'test -Dcoverage-outputDir=' + cov_output_dir).decode('unicode_escape')
+    #     )    
 
     @staticmethod
     def extract_results(output, is_test_code=False):

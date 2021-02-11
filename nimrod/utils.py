@@ -1,4 +1,6 @@
 import os
+import shutil
+
 from distutils.dir_util import copy_tree
 
 
@@ -36,3 +38,6 @@ def dir_to_package(directory):
 
 def copy_dir(input, output):    
     copy_tree(input, output)    
+
+def remove_dir(directory):    
+    shutil.rmtree(directory, ignore_errors=True)       

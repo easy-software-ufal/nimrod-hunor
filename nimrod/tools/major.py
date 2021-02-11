@@ -3,6 +3,7 @@ import sys
 
 from nimrod.mutant import Mutant
 from nimrod.utils import get_java_files
+from nimrod.tools.bin import COMMONS_LANG_24
 
 
 class Major:
@@ -48,7 +49,7 @@ class Major:
     def compile_mutants(self, classpath, mutants):
         print("Compiling mutants...")
         for mutant in mutants:
-            self.java.compile_all(classpath, mutant.dir)
+            self.java.compile_all(classpath + ':'  + COMMONS_LANG_24, mutant.dir)
 
     @staticmethod
     def _get_line_number(number, operator):
