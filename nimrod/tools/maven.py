@@ -95,11 +95,9 @@ class Maven:
 
 
     def test(self, project_dir, sut_class, timeout=TIMEOUT, clean=False):
-        if clean:
-            print("Cleaning up project with maven...")
+        if clean:            
             self.clean(project_dir, TIMEOUT)
-
-        print("Testing the project with maven...")
+        
         return self.extract_test_results(
             self._exec_mvn(project_dir, self.java.get_env(), timeout,
                            'surefire:test', '-Dmaven.test.failure.ignore=true', '-Dcoverage-classes=' + sut_class).decode('unicode_escape')

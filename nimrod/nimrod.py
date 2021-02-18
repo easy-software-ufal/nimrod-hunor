@@ -80,10 +80,12 @@ class Nimrod:
             start_time = time()                
             eqvs = self.tce.equivalents()
             print ('Finished equivalent detection: ', round((time() - start_time), 2), ' secs')
-            print ('TCE duplicate detection via Soot started')
-            start_time = time()                
-            dups = self.tce.duplicates()
-            print ('Finished duplicate detection: ', round((time() - start_time), 2), ' secs')        
+            # Deteccao de duplicados pronta. Mas sem uso por enquanto.
+            # print ('TCE duplicate detection via Soot started')
+            # start_time = time()                
+            # dups = self.tce.duplicates() 
+            dups = []
+            # print ('Finished duplicate detection: ', round((time() - start_time), 2), ' secs')        
             #Delete the temp directory
             tce_temp_dir.cleanup()
             return (eqvs, dups)
@@ -358,6 +360,7 @@ class Nimrod:
         # Save the automatic tests alongside the dev tests (combined test set)
         self._combine_tests(orig_test_classes_dir, auto_generated_tests_dir)
         # Exec tests on original program
+        print("Executing tests...")
         num_tests, num_failures, num_errors, num_skipped, failed_tests = self.maven.test(orig_project_dir, sut_class)
         # Stop execution in case of flaky tests
         if(num_failures > 0 or num_errors > 0):
