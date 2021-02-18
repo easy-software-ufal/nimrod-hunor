@@ -126,13 +126,13 @@ class Tce:
     #TCE strictly wait a MuJava-like folder structure.
     def setup_tce_structure(self, original_project_dir, original_mutants_dir, temp_dir, sut_class):        
         
-        print('Creating TCE structure in a temp diectory: ')        
+        # print('Creating TCE structure in a temp diectory: ')        
         Tce._makeup_struct(temp_dir, sut_class)                   
-        print('Copying source files to TCE...')
+        # print('Copying source files to TCE...')
         Tce._copy_src(original_project_dir, temp_dir)
-        print('Copying class files to TCE...')
+        # print('Copying class files to TCE...')
         Tce._copy_class(original_project_dir, temp_dir)        
-        print('Copying mutant files to TCE...')
+        # print('Copying mutant files to TCE...')
         Tce._copy_mutants(original_mutants_dir, temp_dir)
         Tce._compile_mutants(self.java, original_project_dir, temp_dir, sut_class)
         Tce._organize_in_dirs(original_project_dir, original_mutants_dir, temp_dir, sut_class)
@@ -205,8 +205,7 @@ class Tce:
         elif('major' in mutants_dir):
             src_mutants_log = src_mutants_dir + '/mutants.log'
         dest1 = temp_dir + '/result/' + class_name + '/traditional_mutants'
-        dest2 = temp_dir + '/result/' + class_name + '/traditional_mutants/method'
-        print('Copying mutants...')
+        dest2 = temp_dir + '/result/' + class_name + '/traditional_mutants/method'        
         destination1 = shutil.copy2(src_mutants_log, dest1) 
         copy_tree(src_mutants_dir, dest2 )
         # Copia para pasta original

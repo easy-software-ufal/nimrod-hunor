@@ -75,22 +75,16 @@ class Maven:
                               'clean').decode('unicode_escape')
 
     def compile(self, project_dir, timeout=TIMEOUT, clean=False):
-        if clean:
-            print("Cleaning up project with maven...")
+        if clean:            
             self.clean(project_dir, TIMEOUT)
-
-        print("Compiling the project with maven...")
         return self.extract_results(
             self._exec_mvn(project_dir, self.java.get_env(), timeout,
                            'compile').decode('unicode_escape')
         )
 
     def test_compile(self, project_dir, timeout=TIMEOUT, clean=False):
-        if clean:
-            print("Cleaning up project with maven...")
+        if clean:            
             self.clean(project_dir, TIMEOUT)
-
-        print("Compiling the test project with maven...")
         extraction_result = self.extract_results(
             self._exec_mvn(project_dir, self.java.get_env(), timeout,
                            'test-compile').decode('unicode_escape'), True)
@@ -100,7 +94,7 @@ class Maven:
             return extraction_result    
 
 
-    def test(self, project_dir, timeout=TIMEOUT, clean=False):
+    def test(self, project_dir, sut_class, timeout=TIMEOUT, clean=False):
         if clean:
             print("Cleaning up project with maven...")
             self.clean(project_dir, TIMEOUT)
@@ -108,7 +102,7 @@ class Maven:
         print("Testing the project with maven...")
         return self.extract_test_results(
             self._exec_mvn(project_dir, self.java.get_env(), timeout,
-                           'surefire:test', '-Dmaven.test.failure.ignore=true').decode('unicode_escape')
+                           'surefire:test', '-Dmaven.test.failure.ignore=true', '-Dcoverage-classes=' + sut_class).decode('unicode_escape')
         )
 
     # def test_with_coverage(self, project_dir, cov_output_dir, timeout=TIMEOUT, clean=False):

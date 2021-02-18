@@ -19,29 +19,24 @@ def exec(rt_jar, soot, mujava_res, exp_dir, action, methods='', mutants=''):
     max_handled_mutants = mutants    
 
     if action == 'Opt':
-        print ('TCE optimisation phase started')
+        
         start_time = time()                
         Analyses.optimise(mujava_result_dir, experiment_dir, included_methods, max_handled_mutants)        
-        print ('Finished optimisation phase: ', (time() - start_time), ' secs') 
+        # print ('Finished optimisation phase: ', (time() - start_time), ' secs') 
         return        
         
-    elif 'Ted' == action:
-        print()
-        print ('TCE equivalent detection via Soot started')
+    elif 'Ted' == action:        
         start_time = time()        
         muts_per_class, equiv_muts_per_class = Analyses.ted(experiment_dir, included_methods)
-        print ('Finished equivalent detection: ', (time() - start_time), ' secs')
-        print ()
+        # print ('Finished equivalent detection: ', (time() - start_time), ' secs')
         return equiv_muts_per_class
        
         
-    elif 'Ted-dupes' == action:
-        print()
-        print ('TCE duplicate detection via Soot started')
+    elif 'Ted-dupes' == action:        
+        # print ('TCE duplicate detection via Soot started')
         start_time = time()                
         muts_per_class, dupes_per_class = Analyses.findDups(experiment_dir, included_methods)
-        print ('Finished duplicate detection: ', (time() - start_time), ' secs')
-        print()
+        # print ('Finished duplicate detection: ', (time() - start_time), ' secs')        
         return dupes_per_class
 
 

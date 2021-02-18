@@ -45,8 +45,7 @@ class MuJava:
             dir=os.path.join(self.mutants_dir, log_data[0])
         )
 
-    def compile_mutants(self, classpath, mutants):
-        print("Compiling mutants...")
+    def compile_mutants(self, classpath, mutants):        
         for mutant in mutants:
             self.java.compile_all(classpath, mutant.dir)
 

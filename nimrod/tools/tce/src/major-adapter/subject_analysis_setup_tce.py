@@ -34,15 +34,14 @@ def copy_src(input, output):
     src_dir = input + '/src/main/java'
    #  src_dir = input + '/src/java'
     dest_dir = output + '/src/'
-    print('Copying source files...')
+   #  print('Copying source files...')
     copy_tree(src_dir, dest_dir)
 
 def copy_mutants(input, output, class_name):
     src_mutants_log = input + '/mutants.log'
     src_mutants_dir = input + '/livemutants/'
     dest1 = output + '/result/' + class_name + '/traditional_mutants'
-    dest2 = output + '/result/' + class_name + '/traditional_mutants/method'
-    print('Copying mutants...')
+    dest2 = output + '/result/' + class_name + '/traditional_mutants/method'    
     destination1 = shutil.copy2(src_mutants_log, dest1) 
     copy_tree(src_mutants_dir, dest2 )
     # Copia para pasta original

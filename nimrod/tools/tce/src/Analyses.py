@@ -27,7 +27,7 @@ def optimise(mujava_result_dir, experiment_dir, included_methods, handled_mutant
        
     experiment_classes = os.path.join(experiment_dir, 'bin')
 
-    print(mujava_result_dir)
+    # print(mujava_result_dir)
     
     for mutated_class in os.listdir(mujava_result_dir):
         
@@ -66,7 +66,7 @@ def optimise(mujava_result_dir, experiment_dir, included_methods, handled_mutant
                         path_to_mutant = root.replace("/"+package_structure, "")
                         mutant_name = os.path.basename(path_to_mutant)
                         
-                        print ('Compiling mutant: ', mutant_name)
+                        # print ('Optimizing mutant: ', mutant_name)
                         # print ('  Copying ', os.path.join(root, mutated_class_name + '.class'))
                         # print ('  to ', os.path.join(experiment_classes, package_structure)) 
                         shutil.copy(os.path.join(root, mutated_class_name + '.class'), os.path.join(experiment_classes, package_structure))                        
@@ -79,7 +79,7 @@ def optimise(mujava_result_dir, experiment_dir, included_methods, handled_mutant
                         
                     # print ('--------------------------------------------------')
                 
-                print()
+                
                 # print ('Handled %d mutants' % number_of_muts)
         
         #print ('Working for the original file')
@@ -166,8 +166,7 @@ def ted(experiment_dir, included_methods):
                     
                     #print ('  Comparing mut_file: ', os.path.join(root, files[0]))
                     #print ('  with orig:', os.path.join(original_program, mutant_and_package[1],files[0]))
-                    if _mydiffFiles(os.path.join(root, files[0]), os.path.join(original_program, mutant_and_package[1],files[0])) == 0:
-                        print ('    Found equivalent mutant')
+                    if _mydiffFiles(os.path.join(root, files[0]), os.path.join(original_program, mutant_and_package[1],files[0])) == 0:                        
                         equiv_muts_per_method[optimised_method].append(mutant_and_package[0])
                     
                 
@@ -305,8 +304,7 @@ def ned(mujava_result_dir, included_methods):
                         muts_num_per_method[mutated_method].append(mutant_name)
                         
                         if _mydiffFiles(original_program, os.path.join(root, mutated_class_name + '.class')) == 0:
-                            total_equivs_found += 1
-                            print ('    Found equivalent mutant')
+                            total_equivs_found += 1                            
                             equiv_muts_per_method[mutated_method].append(mutant_name)
                     
                         
@@ -395,7 +393,7 @@ def nedFindDups(mujava_result_dir, included_methods, equiv_muts_per_class=None):
                                     print ('Already handled mutants... Continuing.')
                                     
                                     if mutant_name in dup_muts_per_mutant_per_method[mutated_method][mutant_name2]:
-                                        print ('Duplicate: ', mutant_name2, 'has', mutant_name, 'as duplicate... Deleting ', mutant_name, '\'s list.')
+                                        # print ('Duplicate: ', mutant_name2, 'has', mutant_name, 'as duplicate... Deleting ', mutant_name, '\'s list.')
                                         del dup_muts_per_mutant_per_method[mutated_method][mutant_name]
                                         break
                                     
@@ -533,7 +531,7 @@ def findDups(experiment_dir, included_methods, equiv_muts_per_class=None):
                                 #print ('Already handled mutants... Continuing.')
                                 
                                 if mutant_and_package1[0] in dup_muts_per_mutant_per_method[optimised_method][mutant_and_package2[0]]:
-                                    print ('Duplicate: ', mutant_and_package2[0], 'has', mutant_and_package1[0], 'as duplicate... Deleting ', mutant_and_package1[0], '\'s list.')
+                                    # print ('Duplicate: ', mutant_and_package2[0], 'has', mutant_and_package1[0], 'as duplicate... Deleting ', mutant_and_package1[0], '\'s list.')
                                     del dup_muts_per_mutant_per_method[optimised_method][mutant_and_package1[0]]
                                     break
                                 
