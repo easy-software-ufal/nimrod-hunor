@@ -1,4 +1,4 @@
 {
-  "java_home": "/usr/lib/jvm/java-8-openjdk-amd64",
-  "maven_home": "/usr/share/maven"
+  "java_home": "/home/leofernandesmo/.sdkman/candidates/java/8.0.265.hs-adpt",
+  "maven_home": "/home/leofernandesmo/.sdkman/candidates/maven/3.6.3"
 }

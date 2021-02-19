@@ -141,6 +141,10 @@ class Maven:
             
             if(is_results and "expected:" in line):
                 failed_tests.append(line.replace('\n', '').strip())        
+            elif(is_results and "Failed tests:" in line):
+                failed_tests.append(line.replace('\n', '').strip())            
+            elif(is_results and "_ESTest" in line):
+                failed_tests.append(line.replace('\n', '').strip())                
             elif(is_results and "Tests run:" in line):  
                 temp = line.split(",") 
                 num_tests = int(temp[0][temp[0].find(":")+1:].strip())

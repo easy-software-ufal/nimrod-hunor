@@ -24,7 +24,7 @@ OUTPUT_DIR = 'nimrod_output'
 
 
 NimrodResult = namedtuple('NimrodResult', ['mutant', 'tce_equivalent',
-                                           'killed_by_auto_test', 'num_test_cases', 'test_cases', 'timeout',
+                                           'killed_by_auto_test', 'num_killer_test_cases', 'killer_test_cases', 'timeout',
                                            'executions', 'equal_line_coverage', 'num_different_lines'])
 
 
@@ -69,7 +69,7 @@ class Nimrod:
             #Create a temp directory to execute TCE   
             tce_temp_dir = tempfile.TemporaryDirectory()            
             self.tce = Tce(self.java, tce_temp_dir.name + "/ted", tce_temp_dir.name + "/result")                  
-            print('Creating TCE structure in a temp diectory: {0}'.format(tce_temp_dir.name))
+            print('Creating TCE structure in the temp directory: {0}'.format(tce_temp_dir.name))
             self.tce.setup_tce_structure(project_dir, mutants_dir, tce_temp_dir.name, sut_class)            
             start_time = time()                
             print ('TCE optimisation phase started')
@@ -194,6 +194,17 @@ class Nimrod:
         class_coverage = jmockit.coverage()  
         # mutated_line_info = jmockit.get_mutated_line_info(class_coverage, mutated_line)
         return class_coverage
+
+    def _get_diff_coverage_lines(self, orig_coverage, mut_coverage):
+        diff_lines = {k: orig_coverage[k] for k in orig_coverage if k in mut_coverage and orig_coverage[k] != mut_coverage[k]}
+        if(len(orig_coverage) != len(mut_coverage)):
+            lines_1 = orig_coverage.keys() - mut_coverage.keys()
+            lines_2 = mut_coverage.keys() - orig_coverage.keys()
+            for l in lines_1:
+                diff_lines[l] = orig_coverage[l]
+            for l in lines_2:
+                diff_lines[l] = mut_coverage[l]
+        return diff_lines
 
     def _get_mutation_line_info(self, class_coverage, mutation_line):        
         _, executions, test_cases_cps = JMockit._get_mutation_line_info(class_coverage, mutation_line)          
@@ -360,11 +371,12 @@ class Nimrod:
         # Save the automatic tests alongside the dev tests (combined test set)
         self._combine_tests(orig_test_classes_dir, auto_generated_tests_dir)
         # Exec tests on original program
-        print("Executing tests...")
+        print("Executing tests on original...")
         num_tests, num_failures, num_errors, num_skipped, failed_tests = self.maven.test(orig_project_dir, sut_class)
         # Stop execution in case of flaky tests
         if(num_failures > 0 or num_errors > 0):
                 print("*** ERROR - Flaky tests or error in automatic test generation. Please check executing: mvn test.")
+                print("num_tests: {0}, num_failures: {1}, num_errors: {2}, num_skipped: {3}, failed_tests: {4}".format(num_tests, num_failures, num_errors, num_skipped, failed_tests))
                 return 
        
         #Configure mutant tool, compile mutants dir, and return the mutants set
@@ -373,12 +385,12 @@ class Nimrod:
 
         mutants = self.get_mutants(orig_classes_dir, mutants_dir) 
         # print("Total mutants: {0}".format(len(mutants)))  # esse numero nao eh real, pois soh pega os mutantes do arq de log
-        
+        print("Mutant analysis phase started")
         for mutant in mutants:
             # Does not exec TCE eqvs and dupl mutants
             if (mutant.mid in tce_eqvs):
                 print("Mutant {0} is equivalent".format(mutant.mid))
-                nimrod_results[mutant.mid] = NimrodResult(mutant.mid, True, True, '', 
+                nimrod_results[mutant.mid] = NimrodResult(mutant.mid, True, '', '', 
                         '', '', '', '', '')                        
                 continue
 
@@ -388,7 +400,7 @@ class Nimrod:
                 test_result = self.try_evosuite_diff(orig_classes_dir, evosuite_diff_output_dir, sut_class, mutant,
                                                      evosuite_diff_params)
                 if test_result.fail_tests > 0 or test_result.timeout: #If killed by EvoSuiteR Diff
-                    print("Mutant {0} is NOT equivalent".format(mutant.mid))
+                    print("Mutant {0} is NOT equivalent. Killed by {1}".format(mutant.mid, self._get_test_files(evosuite_diff_output_dir.suite_dir)))
                     nimrod_non_equivs.add(mutant)
                     nimrod_results[mutant.mid] = NimrodResult(mutant.mid, False, True, test_result.fail_tests, 
                         self._get_test_files(evosuite_diff_output_dir.suite_dir), test_result.timeout, 1, False, '')
@@ -409,42 +421,33 @@ class Nimrod:
             try:
                 # Executa o os testes combinados com o mutante que nao morreu com EvoSuiteR - Pega Coverage  
                 num_tests, num_failures, num_errors, num_skipped, failed_tests = self.maven.test(orig_project_dir, sut_class)
+                mut_coverage = self._get_coverage(orig_project_dir, sut_class)            
+                executions, test_cases_cps = self._get_mutation_line_info(mut_coverage, mutant.line_number)
+                diff_lines = self._get_diff_coverage_lines(orig_coverage, mut_coverage)
+                
+                if(num_failures > 0 or num_errors > 0):
+                    print("Mutant {0} is NOT equivalent. Killed by {1}.".format(mutant.mid, failed_tests))
+                    nimrod_results[mutant.mid] = NimrodResult(mutant.mid, False, True, num_failures + num_errors, 
+                            failed_tests, False, executions, False if len(diff_lines)>0 else True, len(diff_lines))
+                else:
+                    print("Mutant {0} may be equivalent. Coverage is {1}.".format(mutant.mid, 'Different' if len(diff_lines)>0 else 'Equal'))
+                    nimrod_results[mutant.mid] = NimrodResult(mutant.mid, False, False, '', 
+                        '', False, executions, False if len(diff_lines)>0 else True, len(diff_lines))
+
             except Exception as e:
                 print("**ERROR: Test timedout to mutant {0}".format(mutant.mid))
                 # Adiciona mutante como diferenete e justifica com Timeout
-                print("Mutant {0} is NOT equivalent".format(mutant.mid))
+                print("Mutant {0} is NOT equivalent. Timeout error.".format(mutant.mid))
                 nimrod_results[mutant.mid] = NimrodResult(mutant.mid, False, True, '', 
                         '', True, 0, False, '')
-                continue
-
-            mut_coverage = self._get_coverage(orig_project_dir, sut_class)            
-            executions, test_cases_cps = self._get_mutation_line_info(mut_coverage, mutant.line_number)
             
-            if(num_failures > 0 or num_errors > 0):
-                print("Mutant {0} is NOT equivalent".format(mutant.mid))
-                nimrod_results[mutant.mid] = NimrodResult(mutant.mid, False, True, num_failures + num_errors, 
-                        failed_tests, False, executions, False, '')
-                continue
-
-            diff_lines_orig = {k: orig_coverage[k] for k in orig_coverage if k in mut_coverage and orig_coverage[k] != mut_coverage[k]}
-            diff_lines_mut = {k: mut_coverage[k] for k in mut_coverage if k in orig_coverage and mut_coverage[k] != orig_coverage[k]}
-            equal_line_coverage = True
-            if(len(diff_lines_orig) > 0 or len(diff_lines_mut) > 0):
-                equal_line_coverage = False
-            elif(len(diff_lines_orig) != len(diff_lines_mut)):    
-                print('############### Different Coverage - THIS LINE MAKES SENSE')
-            
-            print("Mutant {0} may be equivalent".format(mutant.mid))
-            nimrod_results[mutant.mid] = NimrodResult(mutant.mid, False, False, 0, 
-                        test_cases_cps, False, executions, equal_line_coverage, len(diff_lines_orig))
         
         self._print_output(nimrod_results) 
         self.write_to_csv(nimrod_results, output_dir=nimrod_output_dir, filename='nimrod.csv',
                      exclude_if_exists=True)
         print ('Finished Nimrod analysis of {0} mutants in {1} secs: '.format(len(nimrod_results), round((time() - start_time), 2)))
 
-      
-
+    
     @staticmethod
     def write_to_csv(nimrod_results, output_dir='.', filename='nimrod.csv',
                      exclude_if_exists=False):
