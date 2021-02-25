@@ -303,6 +303,14 @@ class Nimrod:
                 distutils.dir_util.copy_tree("./config/", randoop.suite_dir + "/config/")
         return self.suite_randoop    
 
+    def _copy_coverage_report_to_output_dir(self, orig_project_dir, nimrod_output_dir, mutant_id):
+        original_dir = os.path.join(orig_project_dir, 'target','coverage-report')
+        output_dir = os.path.join(nimrod_output_dir, 'coverage', mutant_id)
+        try:
+            copy_dir(original_dir, output_dir)
+        except Exception as e:
+            print("**WARNING: Could not copy coverage report of {0}.".format(str(mutant_id)))        
+
         
 
 
@@ -316,7 +324,7 @@ class Nimrod:
     # 3. Generate automatic tests with EvoSuite and Randoop (based on original)
     # **** Save the automatic tests alongside the dev tests (combined test set)
     # 4. Execute the combined test set to check if they are passing on original (eliminate in case of flaky)
-    # 5. Take the survived mutants (minus TCE eqv and dup) and execute the combined test set
+    # 5. Take the survived mutants (minus TCE eqv ) and execute the combined test set
     #    For each mutant:
     #    IF mutant killed: 
     #       save the killer test, and GO TO ...
@@ -357,6 +365,8 @@ class Nimrod:
                                            else os.path.join(orig_project_dir,
                                                              OUTPUT_DIR))      
 
+        
+        
         self.junit = JUnit(java=self.java, classpath=orig_classes_dir)
 
         # 1. Execute the dev tests (through Maven) - IMPORTANT: Skip this line and take the survived mutants (in case of Defects4J)
@@ -413,7 +423,13 @@ class Nimrod:
         self._combine_tests(orig_test_classes_dir, auto_generated_tests_dir)
         # Executa no programa original
         num_tests, num_failures, num_errors, num_skipped, failed_tests = self.maven.test(orig_project_dir, sut_class)
+        self._copy_coverage_report_to_output_dir(orig_project_dir, nimrod_output_dir, 'original')
         orig_coverage = self._get_coverage(orig_project_dir, sut_class)
+        # Stop execution in case of flaky tests
+        if(num_failures > 0 or num_errors > 0):
+                print("*** ERROR - Flaky tests or error in automatic test generation. Please check executing: mvn test.")
+                print("num_tests: {0}, num_failures: {1}, num_errors: {2}, num_skipped: {3}, failed_tests: {4}".format(num_tests, num_failures, num_errors, num_skipped, failed_tests))
+                return 
         # Próximo passo calcular o Coverage e montar o Rank
         for mutant in nimrod_survived_muts:  
             # Copia o mutante para a pasta correta em target/classes
@@ -421,6 +437,7 @@ class Nimrod:
             try:
                 # Executa o os testes combinados com o mutante que nao morreu com EvoSuiteR - Pega Coverage  
                 num_tests, num_failures, num_errors, num_skipped, failed_tests = self.maven.test(orig_project_dir, sut_class)
+                self._copy_coverage_report_to_output_dir(orig_project_dir, nimrod_output_dir, mutant.mid)
                 mut_coverage = self._get_coverage(orig_project_dir, sut_class)            
                 executions, test_cases_cps = self._get_mutation_line_info(mut_coverage, mutant.line_number)
                 diff_lines = self._get_diff_coverage_lines(orig_coverage, mut_coverage)

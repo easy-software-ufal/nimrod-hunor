@@ -94,13 +94,14 @@ class Maven:
             return extraction_result    
 
 
-    def test(self, project_dir, sut_class, timeout=TIMEOUT, clean=False):
+    def test(self, project_dir, sut_class, coverage_output_dir='target/coverage-report', timeout=TIMEOUT, clean=False):
         if clean:            
             self.clean(project_dir, TIMEOUT)
         
         return self.extract_test_results(
             self._exec_mvn(project_dir, self.java.get_env(), timeout,
-                           'surefire:test', '-Dmaven.test.failure.ignore=true', '-Dcoverage-classes=' + sut_class).decode('unicode_escape')
+                           'surefire:test', '-Dmaven.test.failure.ignore=true', '-Dcoverage-classes=' + sut_class,
+                            '-Dcoverage-outputDir=' + coverage_output_dir).decode('unicode_escape')
         )
 
     # def test_with_coverage(self, project_dir, cov_output_dir, timeout=TIMEOUT, clean=False):
