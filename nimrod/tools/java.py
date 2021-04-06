@@ -107,5 +107,9 @@ class Java:
                 class_file = os.path.join(directory,
                                           java_file.replace('.java', '.class'))
                 if not os.path.exists(class_file):
-                    self.exec_javac(directory + '/' + java_file, directory, None, None,
-                                    '-classpath', classpath)
+                    try:
+                        self.exec_javac(directory + '/' + java_file, directory, None, None,
+                                        '-classpath', classpath)
+                    except Exception:
+                        print("COMPILATION ERROR {0}".format(class_file))
+

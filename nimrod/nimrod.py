@@ -23,9 +23,19 @@ from collections import namedtuple
 OUTPUT_DIR = 'nimrod_output'
 
 
-NimrodResult = namedtuple('NimrodResult', ['mutant', 'tce_equivalent',
-                                           'killed_by_auto_test', 'num_killer_test_cases', 'killer_test_cases', 'timeout',
-                                           'executions', 'equal_line_coverage', 'num_different_lines'])
+NimrodResult = namedtuple('NimrodResult', ['mutant', 
+                                            'mutant_operator',
+                                            'mutant_line_number',
+                                            'mutant_method',
+                                            'mutant_transformation',
+                                            'tce_equivalent',
+                                            'killed_by_auto_test', 
+                                            'num_killer_test_cases', 
+                                            'killer_test_cases', 
+                                            'timeout',
+                                            'executions', 
+                                            'equal_line_coverage', 
+                                            'num_different_lines'])
 
 
 class Nimrod:
@@ -80,11 +90,13 @@ class Nimrod:
             start_time = time()                
             eqvs = self.tce.equivalents()
             print ('Finished equivalent detection: ', round((time() - start_time), 2), ' secs')
+            print('Equivalents by TCE: {0}'.format(eqvs))
             # Deteccao de duplicados pronta. Mas sem uso por enquanto.
             # print ('TCE duplicate detection via Soot started')
             # start_time = time()                
-            # dups = self.tce.duplicates() 
-            dups = []
+            dups = self.tce.duplicates() 
+            print('Duplicates by TCE: {0}'.format(dups))
+            # dups = []
             # print ('Finished duplicate detection: ', round((time() - start_time), 2), ' secs')        
             #Delete the temp directory
             tce_temp_dir.cleanup()
@@ -398,11 +410,12 @@ class Nimrod:
         print("Mutant analysis phase started")
         for mutant in mutants:
             # Does not exec TCE eqvs and dupl mutants
-            if (mutant.mid in tce_eqvs):
-                print("Mutant {0} is equivalent".format(mutant.mid))
-                nimrod_results[mutant.mid] = NimrodResult(mutant.mid, True, '', '', 
+            if (mutant.mid[mutant.mid.index('_')+1:] in tce_eqvs):
+                if('$' not in mutant.method): # ib case of $ means interal class which is a TCE error
+                    print("Mutant {0} is equivalent".format(mutant.mid))
+                    nimrod_results[mutant.mid] = NimrodResult(mutant.mid, mutant.operator, mutant.line_number, mutant.method, mutant.transformation, True, '', '', 
                         '', '', '', '', '')                        
-                continue
+                    continue
 
             if(os.path.isdir(mutant.dir)):      
                 evosuite_diff_output_dir = self._gen_evosuite_diff(sut_class, evosuite_diff_params, orig_classes_dir, auto_generated_tests_dir, mutant)
@@ -412,11 +425,11 @@ class Nimrod:
                 if test_result.fail_tests > 0 or test_result.timeout: #If killed by EvoSuiteR Diff
                     print("Mutant {0} is NOT equivalent. Killed by {1}".format(mutant.mid, self._get_test_files(evosuite_diff_output_dir.suite_dir)))
                     nimrod_non_equivs.add(mutant)
-                    nimrod_results[mutant.mid] = NimrodResult(mutant.mid, False, True, test_result.fail_tests, 
+                    nimrod_results[mutant.mid] = NimrodResult(mutant.mid,  mutant.operator, mutant.line_number, mutant.method, mutant.transformation, False, True, test_result.fail_tests, 
                         self._get_test_files(evosuite_diff_output_dir.suite_dir), test_result.timeout, 1, False, '')
                 else:
                     # print("Mutant {0} was NOT killed by EvoSuiteR".format(mutant.mid)) 
-                    self._remove_wrong_test(evosuite_diff_output_dir.suite_dir)   
+                    # self._remove_wrong_test(evosuite_diff_output_dir.suite_dir)   
                     nimrod_survived_muts.add(mutant)             
 
         # Junta todos os testes gerados com os testes do desenvolvedor
@@ -444,18 +457,18 @@ class Nimrod:
                 
                 if(num_failures > 0 or num_errors > 0):
                     print("Mutant {0} is NOT equivalent. Killed by {1}.".format(mutant.mid, failed_tests))
-                    nimrod_results[mutant.mid] = NimrodResult(mutant.mid, False, True, num_failures + num_errors, 
+                    nimrod_results[mutant.mid] = NimrodResult(mutant.mid,  mutant.operator, mutant.line_number, mutant.method, mutant.transformation, False, True, num_failures + num_errors, 
                             failed_tests, False, executions, False if len(diff_lines)>0 else True, len(diff_lines))
                 else:
                     print("Mutant {0} may be equivalent. Coverage is {1}.".format(mutant.mid, 'Different' if len(diff_lines)>0 else 'Equal'))
-                    nimrod_results[mutant.mid] = NimrodResult(mutant.mid, False, False, '', 
+                    nimrod_results[mutant.mid] = NimrodResult(mutant.mid,  mutant.operator, mutant.line_number, mutant.method, mutant.transformation, False, False, '', 
                         '', False, executions, False if len(diff_lines)>0 else True, len(diff_lines))
 
             except Exception as e:
                 print("**ERROR: Test timedout to mutant {0}".format(mutant.mid))
                 # Adiciona mutante como diferenete e justifica com Timeout
                 print("Mutant {0} is NOT equivalent. Timeout error.".format(mutant.mid))
-                nimrod_results[mutant.mid] = NimrodResult(mutant.mid, False, True, '', 
+                nimrod_results[mutant.mid] = NimrodResult(mutant.mid,  mutant.operator, mutant.line_number, mutant.method, mutant.transformation, False, True, '', 
                         '', True, 0, False, '')
             
         
@@ -476,20 +489,24 @@ class Nimrod:
 
         if not os.path.exists(file):
             with open(file, 'w') as f:
-                f.write('mutant,tce_equivalent,killed_by_auto_test,num_test_cases,test_cases,timeout,executions,equal_line_coverage,num_different_lines\n')
+                f.write('mutant,mutant_operator,mutant_line_number,mutant_method,mutant_transformation,tce_equivalent,killed_by_auto_test,num_killer_test_cases,killer_test_cases,timeout,executions,equal_line_coverage,num_different_lines\n')
         
         for mid in nimrod_results:
             with open(file, 'a') as f:
-                f.write('{0},{1},{2},{3},{4},{5},{6},{7},{8}\n'.format(
+                f.write('{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12}\n'.format(
                     nimrod_results[mid][0],
                     nimrod_results[mid][1],
                     nimrod_results[mid][2],
-                    nimrod_results[mid][3],
+                    str(nimrod_results[mid][3]).replace(',', ';'),
                     str(nimrod_results[mid][4]).replace(',', ';'),
                     nimrod_results[mid][5],
                     nimrod_results[mid][6],
                     nimrod_results[mid][7],
-                    nimrod_results[mid][8],
+                    str(nimrod_results[mid][8]).replace(',', ';'),
+                    nimrod_results[mid][9],                    
+                    nimrod_results[mid][10],
+                    nimrod_results[mid][11],
+                    nimrod_results[mid][12],
                 ))
                 
 

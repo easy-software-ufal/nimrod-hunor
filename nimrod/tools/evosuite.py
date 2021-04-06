@@ -71,7 +71,7 @@ class Evosuite(SuiteGenerator):
     def generate_differential(self, mutant_classpath, make_dir=True):
         if make_dir:
             self._make_src_dir()
-        self._exec_differential(mutant_classpath)
+        output = self._exec_differential(mutant_classpath)
         self._compile()
 
         return Suite(suite_name=self.suite_name, suite_dir=self.suite_dir,
